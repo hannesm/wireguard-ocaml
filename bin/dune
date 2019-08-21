@@ -1,0 +1,8 @@
+(executables
+  ((names (main))
+  (libraries (core nacl_crypto))
+))
+
+(enforce-style ((let_syntax ()) (ocamlformat ())))
+
+(mlis_are_mandatory ((enabled false)))

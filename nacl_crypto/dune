@@ -1,0 +1,11 @@
+(library
+  ((name nacl_crypto)
+  (libraries
+    (core ctypes ocplib_endian hex binary_packing digestif))
+    (c_names (nacl_stubs))
+    (c_libraries (sodium b2))
+    (c_flags (-std=c99))
+    (inline_tests ())
+))
+
+(enforce_style ((let_syntax ((exceptions ()))) (ocamlformat ())))

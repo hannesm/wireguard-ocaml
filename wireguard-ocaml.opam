@@ -1,0 +1,16 @@
+opam-version: "2.0"
+name: "wireguard-ocaml"
+version: "~dev"
+synopsis: "Wireguard, but this time it's in ocaml"
+maintainer: "laudecay <laudecay@gmail.com>"
+authors: "laudecay <laudecay@gmail.com>"
+depends: [
+  "digestif" {>= "0.7.3"}
+]
+build: ["dune" "build" "-p" "wireguard-ocaml"]
+homepage: "https://github.com/laudecay/wireguard-ocaml"
+bug-reports: "https://github.com/laudecay/wireguard-ocaml/issues"
+dev-repo: "https://github.com/laudecay/wireguard-ocaml"
+url {
+  src: "https://github.com/laudecay/wireguard-ocaml"
+}

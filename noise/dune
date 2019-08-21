@@ -1,0 +1,7 @@
+(library
+  ((name noise)
+  (libraries (core nacl_crypto))
+  (inline_tests ())
+))
+
+(enforce_style ((let_syntax ((exceptions ()))) (ocamlformat ())))
