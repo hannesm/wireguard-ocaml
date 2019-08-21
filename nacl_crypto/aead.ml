@@ -26,7 +26,7 @@ let crypto_aead_chacha20poly1305_ABYTES = 16
 
 let nonce_from_counter counter =
   let buf = Bytes.make 12 '\x00' in
-  Ocplib_endian.EndianBytes.LittleEndian.set_int64 buf 4 counter;
+  EndianBytes.LittleEndian.set_int64 buf 4 counter;
   buf
 ;;
 

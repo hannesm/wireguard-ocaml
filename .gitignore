@@ -12,6 +12,7 @@
 *.libdeps
 *.cmt
 *.ml-gen
+.atom-build.yml
 
 # ocamlbuild working directory
 _build/

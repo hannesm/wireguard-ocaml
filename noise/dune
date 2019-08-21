@@ -1,7 +1,6 @@
 (library
-  ((name noise)
-  (libraries (core nacl_crypto))
-  (inline_tests ())
-))
-
-(enforce_style ((let_syntax ((exceptions ()))) (ocamlformat ())))
+  (name noise)
+  (libraries core nacl_crypto)
+  (inline_tests)
+  (preprocess (pps ppx_inline_test ppx_deriving ppx_jane))
+)

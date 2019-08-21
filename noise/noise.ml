@@ -15,21 +15,20 @@ let initial_chain_hash =
     "\x22\x11\xb3\x61\x08\x1a\xc5\x66\x69\x12\x43\xdb\x45\x8a\xd5\x32\x2d\x9c\x6c\x66\x22\x93\xe8\xb7\x0e\xe1\x9c\x65\xba\x07\x9e\xf3'"
 ;;
 
-let label_mac1 = Bytes.of_string "mac1----"
-let label_cookie = Bytes.of_string "cookie--"
+let _label_mac1 = Bytes.of_string "mac1----"
+let _label_cookie = Bytes.of_string "cookie--"
 
 (* CR crichoux: add tests here, verify all strings *)
 let timestamp () =
   let since_epoch = Time_ns.now () |> Time_ns.to_span_since_epoch in
-  let seconds = Time_ns.Span.to_int63_seconds_round_down_exn since_epoch in
-  let ns =
-    Time_ns.Span.(since_epoch - of_int63_seconds seconds)
-    |> Time_ns.Span.to_int_ns
-    |> Int32.of_int_exn
+  let ns_since_epoch = (Time_ns.Span.to_int63_ns since_epoch) |> Int63.to_int64 in
+  let seconds, ns =
+    let thousand = Int64.of_int 1000 in
+    Int64.(ns_since_epoch / thousand, ns_since_epoch % thousand)
   in
   let buf = Bytes.create 12 in
-  Ocplib_endian.EndianBytes.BigEndian.set_int64 buf 0 (Int63.to_int64 seconds);
-  Ocplib_endian.EndianBytes.BigEndian.set_int32 buf 8 ns;
+  EndianBytes.BigEndian.set_int64 buf 0 seconds;
+  EndianBytes.BigEndian.set_int32 buf 8 (Int64.to_int32_trunc ns);
   buf
 ;;
 
@@ -67,9 +66,7 @@ let first_message
   let open Nacl_crypto in
   let open Or_error.Let_syntax in
   let msg_type_and_reserved = Bytes.of_string "\x01\x00\x00\x00" in
-  (* CR crichoux: consider memoizing the next 3 lines? *)
-  let%bind c_i = Hash_blake2s.hash Misc.construction in
-  let%bind h_i = Hash_blake2s.hash2 c_i Misc.identifier in
+  let c_i, h_i = initial_chain_key, initial_chain_hash in
   let%bind h_i = Hash_blake2s.hash2 h_i s_r in
   let%bind e_i = Ecdh.generate () in
   let c_i = Kdf.kdf_1 ~key:c_i e_i.public in
@@ -87,7 +84,7 @@ let first_message
     Aead.encrypt
       ~key:kappa
       ~counter:(Int64.of_int 0)
-      ~message:(Misc.timestamp ())
+      ~message:(timestamp ())
       ~auth_text:h_i
   in
   let%map _h_i = Hash_blake2s.hash2 h_i msg_timestamp_signed in
