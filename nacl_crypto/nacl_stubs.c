@@ -19,7 +19,7 @@
 # define inline
 #endif
 
-
+/* CR crichoux: move all of this over to stealing wireguard's crypto primitives */
 /* CR crichoux: have someone who understands the GC look at this */
 CAMLprim value caml_sodium_init(value __unused v_unit) {
   CAMLparam0();
