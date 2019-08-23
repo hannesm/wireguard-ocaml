@@ -117,8 +117,7 @@ let first_message ~(msg_sender : bytes) ~(timestamp : bytes)
   in
   ((c_i, h_i), packet)
 
-let second_message ?(* optional PSK mode *)
-                   q ~(incoming_packet : bytes) ~(msg_receiver : bytes)
+let second_message ?q ~(incoming_packet : bytes) ~(msg_receiver : bytes)
     ~(e_r : Nacl_crypto.Key.keypair) ~(s_r : Nacl_crypto.Key.keypair)
     ~(s_i_public : Nacl_crypto.Key.public Nacl_crypto.Key.key) :
     ((bytes * bytes) * bytes) Or_error.t =
