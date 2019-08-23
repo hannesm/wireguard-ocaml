@@ -5,33 +5,26 @@ let gen_tau_0 ~input ~key = Hash_blake2s.hmac ~input ~key
 let gen_next ~last ~tau_0 ~i =
   let input =
     let c_list = Bytes.to_list last in
-    let c_list = List.append c_list [ i ] in
+    let c_list = List.append c_list [i] in
     Bytes.of_char_list c_list
   in
   Hash_blake2s.hmac ~key:tau_0 ~input
-;;
 
 let kdf_1_ ?tau_0 ~key input =
   let tau_0 =
-    match tau_0 with
-    | None -> gen_tau_0 ~input ~key
-    | Some tau_0 -> tau_0
+    match tau_0 with None -> gen_tau_0 ~input ~key | Some tau_0 -> tau_0
   in
   Hash_blake2s.hmac ~key:tau_0 ~input:(Bytes.of_string "\x01")
-;;
 
 let kdf_1 ~key input = kdf_1_ ~key input
 
 let kdf_2_ ?tau_0 ~key input =
   let tau_0 =
-    match tau_0 with
-    | None -> gen_tau_0 ~input ~key
-    | Some tau_0 -> tau_0
+    match tau_0 with None -> gen_tau_0 ~input ~key | Some tau_0 -> tau_0
   in
   let tau_1 = kdf_1_ ~tau_0 ~key input in
   let tau_2 = gen_next ~last:tau_1 ~i:'\x02' ~tau_0 in
-  tau_1, tau_2
-;;
+  (tau_1, tau_2)
 
 let kdf_2 ~key input = kdf_2_ ~key input
 
@@ -39,8 +32,7 @@ let kdf_3 ~key input =
   let tau_0 = gen_tau_0 ~input ~key in
   let tau_1, tau_2 = kdf_2_ ~tau_0 ~key input in
   let tau_3 = gen_next ~last:tau_2 ~i:'\x03' ~tau_0 in
-  tau_1, tau_2, tau_3
-;;
+  (tau_1, tau_2, tau_3)
 
 let%expect_test "check_kdf" =
   let input =
@@ -53,20 +45,14 @@ let%expect_test "check_kdf" =
   in
   let tau_1, tau_2, tau_3 = kdf_3 ~key input in
   print_string
-    (Hex.hexdump_s
-       ~print_row_numbers:false
-       ~print_chars:false
-       (Hex.of_string (Bytes.to_string tau_1)));
+    (Hex.hexdump_s ~print_row_numbers:false ~print_chars:false
+       (Hex.of_string (Bytes.to_string tau_1))) ;
   print_string
-    (Hex.hexdump_s
-       ~print_row_numbers:false
-       ~print_chars:false
-       (Hex.of_string (Bytes.to_string tau_2)));
+    (Hex.hexdump_s ~print_row_numbers:false ~print_chars:false
+       (Hex.of_string (Bytes.to_string tau_2))) ;
   print_string
-    (Hex.hexdump_s
-       ~print_row_numbers:false
-       ~print_chars:false
-       (Hex.of_string (Bytes.to_string tau_3)));
+    (Hex.hexdump_s ~print_row_numbers:false ~print_chars:false
+       (Hex.of_string (Bytes.to_string tau_3))) ;
   [%expect
     {|
     e208 0118 5066 9fda 852f a82e 0cab d797
@@ -76,4 +62,3 @@ let%expect_test "check_kdf" =
     aff9 b493 b751 fff4 247e 3da9 12a9 146b
     c862 f570 e9cb f5ae ba6d 8966 65c8 396b
     |}]
-;;
