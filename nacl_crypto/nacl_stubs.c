@@ -19,7 +19,6 @@
 # define inline
 #endif
 
-/* CR crichoux: move all of this over to stealing wireguard's crypto primitives */
 /* CR crichoux: have someone who understands the GC look at this */
 CAMLprim value caml_sodium_init(value __unused v_unit) {
   CAMLparam0();
@@ -50,7 +49,7 @@ CAMLprim value caml_crypto_aead_chacha20poly1305_encrypt
    value nonce,
    value key) {
   CAMLparam5 (dst_ciphertext, src_message, src_auth_text, nonce, key);
-  CAMLreturn(Val_int(crypto_aead_chacha20poly1305_encrypt
+  CAMLreturn(Val_int(crypto_aead_chacha20poly1305_ietf_encrypt
                      (Bytes_val(Field(dst_ciphertext, 0)),
                       (unsigned long long *)Data_custom_val(Field(dst_ciphertext, 1)),
                       Bytes_val(Field(src_message, 0)),
@@ -71,7 +70,7 @@ CAMLprim value caml_crypto_aead_chacha20poly1305_decrypt
 
   CAMLparam5 (dst_message, src_ciphertext, src_auth_text, nonce, key);
 
-  CAMLreturn(Val_int(crypto_aead_chacha20poly1305_decrypt
+  CAMLreturn(Val_int(crypto_aead_chacha20poly1305_ietf_decrypt
                      (Bytes_val(Field(dst_message, 0)),
                       (unsigned long long *)Data_custom_val(Field(dst_message, 1)),
                       NULL,

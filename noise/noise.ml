@@ -12,14 +12,14 @@ let initial_chain_key =
 (* initiator.chaining_hash = HASH(initiator.chaining_key || IDENTIFIER) *)
 let initial_chain_hash =
   Bytes.of_string
-    "\x22\x11\xb3\x61\x08\x1a\xc5\x66\x69\x12\x43\xdb\x45\x8a\xd5\x32\x2d\x9c\x6c\x66\x22\x93\xe8\xb7\x0e\xe1\x9c\x65\xba\x07\x9e\xf3'"
+    "\x22\x11\xb3\x61\x08\x1a\xc5\x66\x69\x12\x43\xdb\x45\x8a\xd5\x32\x2d\x9c\x6c\x66\x22\x93\xe8\xb7\x0e\xe1\x9c\x65\xba\x07\x9e\xf3"
 ;;
 
 let _label_mac1 = Bytes.of_string "mac1----"
 let _label_cookie = Bytes.of_string "cookie--"
 
 (* CR crichoux: add tests here, verify all strings *)
-let timestamp () =
+let _get_timestamp () =
   let since_epoch = Time_ns.now () |> Time_ns.to_span_since_epoch in
   let ns_since_epoch = (Time_ns.Span.to_int63_ns since_epoch) |> Int63.to_int64 in
   let seconds, ns =
@@ -36,6 +36,13 @@ let _add_macs ~message ~message_length =
   assert (Bytes.length message = message_length + 32);
   failwith "unimplemented"
 ;;
+
+let bytes_to_hex (bytes : bytes) : string =
+  Hex.hexdump_s
+     ~print_row_numbers:false
+     ~print_chars:false
+     (bytes |> Bytes.to_string |> Hex.of_string)
+     ;;
 
 let first_message_of_fields
       ~msg_type_and_reserved
@@ -60,41 +67,51 @@ let first_message_of_fields
 
 let first_message
       ~(msg_sender : bytes)
+      ~(timestamp : bytes)
       ~(e_i : Nacl_crypto.Key.keypair)
       ~(s_r : Nacl_crypto.Key.public Nacl_crypto.Key.key)
       ~(s_i : Nacl_crypto.Key.keypair)
-  =
+  : ((bytes* bytes) *bytes) Or_error.t=
   let open Nacl_crypto in
   let open Or_error.Let_syntax in
   let msg_type_and_reserved = Bytes.of_string "\x01\x00\x00\x00" in
   let c_i, h_i = initial_chain_key, initial_chain_hash in
+
   (* 3: H_i := HASH(H_i || S_r^{pub}) *)
   let%bind h_i = Hash_blake2s.hash2 h_i s_r in
+
   (* 5: C_i := KDF_1(C_i, E_i^{pub}) *)
   let c_i = Kdf.kdf_1 ~key:c_i e_i.public in
   let msg_ephemeral = e_i.public in
+
   (* 7: H_i := HASH(H_i || msg_ephemeral) *)
   let%bind h_i = Hash_blake2s.hash2 h_i msg_ephemeral in
+
   (* 8: (C_i, \kappa) := KDF_2(C_i, DH(E_i^{priv}, S_r^{pub})) *)
   let%bind ephemeral_shared = Ecdh.dh ~secret:e_i.secret ~public:s_r in
   let c_i, kappa = Kdf.kdf_2 ~key:c_i ephemeral_shared in
+
   (* 9: msg.static = AEAD(\kappa, 0, S_i^{pub}, H_i) *)
   let%bind msg_static_signed =
     Aead.encrypt ~key:kappa ~counter:(Int64.of_int 0) ~message:s_i.public ~auth_text:h_i
   in
+
   (* 10: H_i = HASH(H_i || msg.static) *)
   let%bind h_i = Hash_blake2s.hash2 h_i msg_static_signed in
+
   (* 11: (C_i, \kappa) := KDF_2(C_i, DH(S_i^{priv}, S_r^{pub})) *)
   let%bind static_shared = Ecdh.dh ~secret:s_i.secret ~public:s_r in
   let c_i, kappa = Kdf.kdf_2 ~key:c_i static_shared in
+
   (* 12: msg.timestamp = AEAD(\kappa, 0, TIMESTAMP(), H_i) *)
   let%bind msg_timestamp_signed =
     Aead.encrypt
       ~key:kappa
       ~counter:(Int64.of_int 0)
-      ~message:(timestamp ())
+      ~message:(timestamp)
       ~auth_text:h_i
   in
+
   (* 13: H_i := HASH(H_i || msg.timestamp) *)
   let%map h_i = Hash_blake2s.hash2 h_i msg_timestamp_signed in
   let packet =
@@ -108,22 +125,42 @@ let first_message
   (c_i, h_i), packet
 ;;
 
-let%expect_test "test-handshake" =
+
+
+let%expect_test "test-first-message-no-macs" =
   Nacl_crypto.Initialize.init () |> Or_error.ok_exn;
-  let peer_static_public = Bytes.of_string "\x7d\x6a\xc5\x60\x56\xdc\x48\xc6\x7c\x4a\x26\xdb\xd2\xfb\xce\xdc\x4c\x6c\x4c\x06\xbf\xe9\x1e\x06\x22\x0f\xde\xec\xf9\xc3\x5c\x2f" in
-  let ephemeral_private = Bytes.of_string "\x89\x68\x18\xcf\x9c\x83\xd3\xc1\x34\x6d\x77\x8c\x13\x68\x5e\x06\x1c\xd8\xc6\x4a\xc9\x52\x0b\x0a\x2e\xab\x6b\xe6\x34\xfe\xd9\xa4" in
-  let ephemeral_public = Bytes.of_string "\xe8\xf2\x3c\xd6\x40\x83\x41\xe7\xbb\xdd\x8a\x05\x19\xea\xc4\xe8\xc3\xd9\x4f\xb0\x2a\x8c\x72\xec\xd9\xbd\x06\x97\x78\x45\x3f\x7d" in
+  let peer_static_public = Bytes.of_string "\xa5\x22\xc9\xe0\xce\x09\x02\x80\xde\xd9\x52\x5f\x0b\x89\x6f\x8a\xae\x4f\x4d\x7d\x1d\xaa\x28\x69\x40\x32\x6e\x0e\xf6\x97\x4e\x0c" in
+  let ephemeral_private = Bytes.of_string "\x30\x9b\xd4\x97\x6f\x21\x40\xd0\x6e\x3d\xff\x2b\x6c\x54\x33\xdc\x25\x12\xcd\x0e\x95\x92\x48\x14\x14\x67\x45\x6b\xa6\x95\x71\xf4" in
+  let ephemeral_public = Bytes.of_string "\xeb\x71\x6c\x9c\xdb\x35\x67\xd1\xdf\xc2\xf4\x8f\xeb\xbb\xbd\x05\x9d\x8a\xda\x71\x50\xa9\xa4\x60\x28\x0b\xac\x09\xc1\x2c\xbb\x08" in
+  let own_static_public = Bytes.of_string "\x1f\xfd\x47\xe6\x3d\x4b\xaa\xe9\x4a\x7e\x36\x47\x41\x81\xa3\x3f\xe2\x6f\x53\xc5\x8e\x9c\xfa\x4f\x15\xcc\xc9\xce\x54\x89\x9c\x5d" in
+  let own_static_private = Bytes.of_string "\x43\xb7\x1a\xd5\x21\x8e\xb2\x37\x1d\x2b\x4a\xce\x14\x5c\x6f\xe9\x6a\xbb\x68\x4b\xc8\x2c\x9b\x5b\xd1\x0f\x28\xd2\x9f\x52\xcd\xca" in
+  let timestamp = Bytes.of_string "\x40\x00\x00\x00\x5d\x60\x01\x88\x27\x13\x75\x69" in
   let e_i = Nacl_crypto.Key.{secret=ephemeral_private; public=ephemeral_public} in
   let msg_sender = Bytes.of_string "\x00\x64\x00\x00" in
-  let own_static_public = Bytes.of_string "\x50\x26\x84\x96\x13\x61\x80\x43\x41\x99\x21\xfb\x82\x0a\x60\x4b\x6f\x82\x89\xdd\xe1\x93\x52\x67\xbb\xb8\xa9\xd6\xba\xd4\x15\x49" in
-  let own_static_private = Bytes.of_string "\xeb\xcc\xa5\x2a\x1e\xa5\x56\x1c\xb6\xd2\xaa\xd1\xe8\xdf\x20\x18\x36\xef\x67\xdd\x1e\x5a\xb4\x73\x68\xc3\x34\x6b\x86\xda\x81\xa1" in
   let s_i = Nacl_crypto.Key.{secret=own_static_private; public=own_static_public} in
-  let (c_i, h_i), packet = first_message ~msg_sender ~e_i ~s_i ~s_r:peer_static_public |> Or_error.ok_exn in
-  print_s [%message (Bytes.to_string c_i:string) (Bytes.to_string h_i:string) (Bytes.to_string packet:string )];
+  (match first_message ~timestamp ~msg_sender ~e_i ~s_i ~s_r:peer_static_public with
+  | Ok ((c_i, h_i), packet) ->
+    let packet_without_macs = Bytes.init 116 ~f:(Bytes.get packet) in
+    print_s [%message (bytes_to_hex c_i :string) (bytes_to_hex h_i:string) (bytes_to_hex packet_without_macs : string)]
+  | Error e -> print_s [%message (e:Error.t)]);
   [%expect {|
-    (("Bytes.to_string c_i"
-      "\003\215\006\184\149\004\196\151\212\012\166\198\239\180K\255t\210b\163E\201![\230\242\177\029\129Z*\189")
-    [b, 3e, cc, 83, 5c, 61, 46, 66, 75, df, 83, f0, ef, 4b, 90, 59, 2d, c5, 99, dc, e6, 80, ff, 83, 3d, 2c, 93, 17, c1, b5, 7b, 14]
-    [1, 0, 0, 0, 0, 64, 0, 0, e8, f2, 3c, d6, 40, 83, 41, e7, bb, dd, 8a, 5, 19, ea, c4, e8, c3, d9, 4f, b0, 2a, 8c, 72, ec, d9, bd, 6, 97, 78, 45, 3f, 7d, fe, f6, 5c, 4d, cd, a3, 65, e2, ea, 54, ee, a, a4, 7f, 3e, 53, f8, 75, ac, 13, 30, 7c, f3, 48, dc, e0, d4, 4d, 5d, e4, 21, 36, f7, 78, e8, ef, af, b4, 7f, 95, db, 27, b, 6, ea, 8a, 63, 18, 3b, ba, a, d0, 57, 2c, fd, 25, c7, 85, 5c, f2, f5, f9, 63, 7c, c5, e5, 61, 1e, 48, 11, e8, 57, 4e, af, b2, 26, f3, b8, 26, 37, c, ea, a4, 3f, e1, 83, 51, 75, 31, 5c, 23, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    (("bytes_to_hex c_i"
+       "5b09 a279 7518 960d 0709 a59a 1c9d c9c9\
+      \n7973 572c 3b8a fe5a 908f f177 5fcb 470a\
+      \n")
+     ("bytes_to_hex h_i"
+       "eb99 3d46 2442 5bf9 5b47 fabe a17f 6889\
+      \na571 e589 0a7a c7cc dff3 92cf 5630 0e2a\
+      \n")
+     ("bytes_to_hex packet_without_macs"
+       "0100 0000 0064 0000 eb71 6c9c db35 67d1\
+      \ndfc2 f48f ebbb bd05 9d8a da71 50a9 a460\
+      \n280b ac09 c12c bb08 dac4 58de e7d9 1eee\
+      \nd37d eb3b e063 3db7 0082 757c 1852 aea0\
+      \n6902 fff2 f45a a952 1822 8b6f c957 5ef7\
+      \n2773 d12f 878c d0ad 80c9 457b a2bc d705\
+      \n0201 c309 f1e5 7d7e fbb2 ba8c afbe 56b3\
+      \nde7d 4aea                              \
+      \n"))
    |}]
 ;;
