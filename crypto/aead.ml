@@ -28,6 +28,7 @@ let nonce_from_counter counter =
   buf
 
 let encrypt ~key ~counter ~message ~auth_text =
+  let key = Key.shared_to_bytes key in
   let nonce = nonce_from_counter counter in
   let m_with_len = add_len message in
   let c_with_len =
@@ -45,6 +46,7 @@ let encrypt ~key ~counter ~message ~auth_text =
   else Or_error.return (fst c_with_len)
 
 let decrypt ~key ~counter ~ciphertext ~auth_text =
+  let key = Key.shared_to_bytes key in
   let nonce = nonce_from_counter counter in
   let c_with_len = add_len ciphertext in
   let m_with_len =
@@ -65,7 +67,7 @@ let%expect_test "test-aead-encrypt-decrypt" =
   Initialize.init () |> Or_error.ok_exn ;
   let message = Bytes.of_string "test" in
   let auth_text = Bytes.of_string "123456" in
-  let key = Key.random_buffer 32 in
+  let key = Key.random_buffer 32 |> Key.shared_of_bytes in
   let counter = Int.to_int64 50000 in
   let ciphertext =
     encrypt ~key ~counter ~message ~auth_text |> Or_error.ok_exn

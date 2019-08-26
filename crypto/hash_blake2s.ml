@@ -39,6 +39,7 @@ let mac_bytes_out = 16
 
 let mac ~input ~key =
   let out_buf = Bytes.create mac_bytes_out in
+  let key = Key.shared_to_bytes key in
   let status =
     mac_ input (Bytes.length input) key (Bytes.length key) out_buf
   in
@@ -48,7 +49,7 @@ let mac ~input ~key =
 
 let%expect_test "check_mac" =
   let input = Bytes.of_string "Some data" in
-  let key = Bytes.of_string "secret" in
+  let key = Bytes.of_string "secret" |> Key.shared_of_bytes in
   let digest = mac ~input ~key |> Or_error.ok_exn in
   print_string
     (Hex.hexdump_s ~print_row_numbers:false ~print_chars:false
@@ -56,12 +57,13 @@ let%expect_test "check_mac" =
   [%expect {| 3fb4 7e62 3d00 31b9 7f5f a77b 63ad d3c5 |}]
 
 let hmac ~input ~key =
+  let key = Key.shared_to_bytes key in
   Digestif.BLAKE2S.hmac_bytes ~key input
   |> Digestif.BLAKE2S.to_raw_string |> Bytes.of_string
 
 let%expect_test "check_hmac" =
   let input = Bytes.of_string "Some data" in
-  let key = Bytes.of_string "secret" in
+  let key = Bytes.of_string "secret" |> Key.shared_of_bytes in
   let digest = hmac ~input ~key in
   print_string
     (Hex.hexdump_s ~print_row_numbers:false ~print_chars:false

@@ -1,5 +1,5 @@
 (library
-  (name nacl_crypto)
+  (name crypto)
   (libraries core ctypes ocplib-endian hex digestif)
   (c_names nacl_stubs)
   (c_library_flags -lsodium -lb2)

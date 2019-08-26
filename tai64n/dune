@@ -1,6 +1,6 @@
 (library
-  (name noise)
-  (libraries core crypto)
+  (name tai64n)
+  (libraries core ocplib-endian)
   (inline_tests)
   (preprocess (pps ppx_inline_test ppx_deriving ppx_jane))
 )
