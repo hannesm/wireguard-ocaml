@@ -1,26 +1,28 @@
 open Core
+open Stdint
 
 type t = {
-  seconds : int64;
-  nanoseconds : int32;
+  seconds : uint64;
+  nanoseconds : uint32;
 }
 
+let base = Uint64.of_string "0x400000000000000a"
 let time_to_t time =
   let since_epoch = Time_ns.to_span_since_epoch time in
   let ns_since_epoch =
-    Time_ns.Span.to_int63_ns since_epoch |> Int63.to_int64
+    Time_ns.Span.to_int63_ns since_epoch |> Int63.to_int64 |> Uint64.of_int64
   in
   let seconds, nanoseconds =
-    let thousand = Int64.of_int 1000 in
-    Int64.(ns_since_epoch / thousand, rem ns_since_epoch thousand)
+    let thousand = Uint64.of_int 1000000000 in
+    Uint64.(base + ns_since_epoch / thousand, rem ns_since_epoch thousand)
   in
-  {seconds; nanoseconds=Int64.to_int32_trunc nanoseconds}
+  {seconds; nanoseconds=Uint64.to_uint32 nanoseconds}
 ;;
 
 let t_to_bytes {seconds; nanoseconds} =
   let buf = Bytes.create 12 in
-  EndianBytes.BigEndian.set_int64 buf 0 seconds ;
-  EndianBytes.BigEndian.set_int32 buf 8 nanoseconds;
+  Uint64.to_bytes_big_endian seconds buf 0;
+  Uint32.to_bytes_big_endian nanoseconds buf 8;
   buf
 ;;
 
@@ -29,12 +31,13 @@ let t_to_bytes {seconds; nanoseconds} =
   let ns = EndianBytes.BigEndian.get_int32 buf 8 in
   {seconds=secs; nanoseconds=ns}
 ;;*)
-
-let whitener_mask = (0x8000000 - 1)
+let whitener_mask = Uint32.of_int (0x1000000 - 1)
 
 let whiten {seconds; nanoseconds} =
   (* CR crichoux: is this right? *)
-  let nanoseconds = Int32.of_int_trunc (Int32.to_int_trunc nanoseconds land whitener_mask) in
+  (*print_s [%message "nanoseconds before whitening" (Uint32.to_string nanoseconds :string)]; *)
+  let nanoseconds = Uint32.logand nanoseconds (Uint32.lognot whitener_mask) in
+  (* print_s [%message "nanoseconds after whitening" (Uint32.to_string nanoseconds: string)]; *)
   {seconds; nanoseconds}
 ;;
 
@@ -52,7 +55,7 @@ let after (t1 : bytes) (t2: bytes) =
 let%expect_test "test_tai64n_monotonic" =
   let old = ref (now ()) in
   let sleep_period =
-    Time_ns.Span.to_sec (Time_ns.Span.of_int_ns (whitener_mask + 1))
+    Time_ns.Span.to_sec (Time_ns.Span.of_int_ns (Uint32.to_int whitener_mask))
   in
   for _ = 0 to 50 do
     let next = now () in
