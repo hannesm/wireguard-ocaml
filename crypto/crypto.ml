@@ -1,9 +1,6 @@
 include Initialize
-include Aead
-include Ecdh
-include Kdf
-include Hash_blake2s
-
-include Xaead
-
 include Key
+include Ecdh
+include Hash_blake2s
+include Kdf
+include Aead

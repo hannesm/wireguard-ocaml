@@ -1,6 +1,6 @@
 (library
   (name crypto)
-  (libraries core ctypes ocplib-endian hex digestif)
+  (libraries core ctypes stdint hex digestif)
   (c_names nacl_stubs)
   (c_library_flags -lsodium -lb2)
   (c_flags -std=c99)

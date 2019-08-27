@@ -1,16 +1,15 @@
-val first_message :
-     msg_sender:bytes
-  -> timestamp:bytes
-  -> e_i:Crypto.keypair
-  -> s_r_public:bytes
-  -> s_i:Crypto.keypair
-  -> ((Crypto.shared_key * bytes) * bytes) Core.Or_error.t
+open Core
+open Crypto
 
-(*val second_message :
-     ?q:bytes
-  -> incoming_packet:bytes
-  -> msg_receiver:bytes
-  -> e_r:Crypto.Key.keypair
-  -> s_r:Crypto.Key.keypair
-  -> s_i_public:bytes
-  -> ((bytes * bytes) * bytes) Core.Or_error.t*)
+module Noise_message : sig
+  type t
+end
+
+module Handshake : sig
+  type t
+end
+
+val create_message_initiation :
+     local_static_public:Public.key
+  -> handshake:Handshake.t
+  -> Noise_message.t Or_error.t

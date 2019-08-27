@@ -1,17 +1,51 @@
-type secret_key [@@deriving sexp_of]
-
-type public_key = bytes [@@deriving sexp_of]
-
-type shared_key [@@deriving sexp_of]
-
-type keypair = {secret: secret_key; public: public_key} [@@deriving sexp_of]
-
-(* CR crichoux: hide these from outer world! *)
-val shared_to_bytes : shared_key -> bytes
-val shared_of_bytes : bytes -> shared_key
-val secret_to_bytes : secret_key -> bytes
-val secret_of_bytes : bytes -> secret_key
+open Core
 
 val random_buffer : int -> bytes
-val is_zero : bytes -> bool
-val set_zero : bytes  -> unit
+
+val zero_buffer : bytes -> unit
+
+val copy_buffer : src:bytes -> dst:bytes -> unit Or_error.t
+
+module type Key_utils = sig
+  type key [@@deriving sexp_of]
+
+  val to_hex : key -> string
+
+  val of_hex : ?len:int -> string -> key Or_error.t
+
+  val set_zero : key -> unit
+
+  val of_bytes : bytes -> key
+
+  val to_bytes : key -> bytes
+
+  val copy_from_bytes : key -> bytes -> unit Or_error.t
+
+  val copy_to_bytes : key -> bytes -> unit Or_error.t
+
+  val copy : src:key -> dst:key -> unit Or_error.t
+
+  val equals : key -> key -> bool
+
+  val is_zero : key -> bool
+end
+
+module Shared : sig
+  include Key_utils
+end
+
+module Secret : sig
+  include Key_utils
+
+  val generate_key : len:int -> key
+end
+
+module Public : sig
+  include Key_utils
+end
+
+type keypair = {secret: Secret.key; public: Public.key} [@@deriving sexp_of]
+
+val copy_keypair : src:keypair -> dst:keypair -> unit Or_error.t
+
+val zero_keypair : keypair -> unit

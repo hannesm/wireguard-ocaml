@@ -7,32 +7,52 @@ let public_key_length = 32
 
 let shared_key_length = 32
 
-external gen_keypair_ : bytes -> bytes -> int
-  = "caml_crypto_gen_keypair"
+external gen_keypair_ : bytes -> bytes -> int = "caml_crypto_gen_keypair"
 
 let generate () =
   let public = Bytes.create public_key_length in
   let secret = Bytes.create secret_key_length in
   if gen_keypair_ public secret < 0 then
     Or_error.error_s [%message "failed to generate ed25519 keypair"]
-  else Or_error.return {secret=secret_of_bytes secret; public=public}
+  else
+    Or_error.return
+      {secret= Secret.of_bytes secret; public= Public.of_bytes public}
 
-external dh_ : bytes -> bytes -> bytes -> int
-  = "caml_crypto_dh"
+external dh_ : bytes -> bytes -> bytes -> int = "caml_crypto_dh"
 
-let dh ~(public : public_key) ~(secret : secret_key) =
+let dh ~(public : Public.key) ~(secret : Secret.key) =
   let shared = Bytes.create shared_key_length in
-  let secret = Key.secret_to_bytes secret in
+  let secret = Secret.to_bytes secret in
+  let public = Public.to_bytes public in
   if dh_ shared secret public < 0 then
     Or_error.error_s
       [%message "failed to do ecdh with provided key material"]
-  else Or_error.return (Key.shared_of_bytes shared)
+  else
+    let ret = Or_error.return (Shared.of_bytes shared) in
+    Key.zero_buffer shared ; ret
+
+let handle ~default (or_error : 'a Or_error.t) : 'a =
+  match or_error with
+  | Ok a -> a
+  | Error e ->
+      print_s [%message (e : Error.t)] ;
+      default
+
+let dummy_keypair () =
+  { secret= Secret.of_bytes (Bytes.create 0)
+  ; public= Public.of_bytes (Bytes.create 0) }
 
 let%expect_test "check generation and ecdh" =
-  Initialize.init () |> Or_error.ok_exn ;
-  let k1 = generate () |> Or_error.ok_exn in
-  let k2 = generate () |> Or_error.ok_exn in
-  let shared1 = dh ~public:k2.public ~secret:k1.secret |> Or_error.ok_exn |> Key.shared_to_bytes in
-  let shared2 = dh ~public:k1.public ~secret:k2.secret |> Or_error.ok_exn |> Key.shared_to_bytes in
-  print_string (Bool.to_string (Bytes.equal shared1 shared2)) ;
-  [%expect {| true |}]
+  Initialize.init () |> handle ~default:() ;
+  let k1 = generate () |> handle ~default:(dummy_keypair ()) in
+  let k2 = generate () |> handle ~default:(dummy_keypair ()) in
+  let shared1 =
+    dh ~public:k2.public ~secret:k1.secret
+    |> handle ~default:(Shared.of_bytes (Bytes.create 0))
+  in
+  let shared2 =
+    dh ~public:k1.public ~secret:k2.secret
+    |> handle ~default:(Shared.of_bytes (Bytes.create 0))
+  in
+  print_s [%message (Shared.equals shared1 shared2 : bool)] ;
+  [%expect {| ("Shared.equals shared1 shared2" true) |}]
