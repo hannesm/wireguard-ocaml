@@ -1,5 +1,5 @@
 open Core
-open Crypto.Key
+open Crypto
 
 (* Where encrypted data resides in a data packet *)
 let _data_offset : int = 16
@@ -135,8 +135,8 @@ type t =
 let create ~local_index ~peer_index ~receiving_key ~sending_key =
   {receiving_index=local_index;
   sending_index=peer_index;
-  receiver = Crypto.Key.shared_of_bytes receiving_key;
-  sender = Crypto.Key.shared_of_bytes sending_key;
+  receiver = Crypto.shared_of_bytes receiving_key;
+  sender = Crypto.shared_of_bytes sending_key;
   sending_key_counter = Int64.zero;
   receiving_key_counter = Receiving_key_counter_validator.create ()}
 ;;

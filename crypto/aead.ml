@@ -27,7 +27,7 @@ let nonce_from_counter counter =
   EndianBytes.LittleEndian.set_int64 buf 4 counter ;
   buf
 
-let encrypt ~key ~counter ~message ~auth_text =
+let aead_encrypt ~key ~counter ~message ~auth_text =
   let key = Key.shared_to_bytes key in
   let nonce = nonce_from_counter counter in
   let m_with_len = add_len message in
@@ -45,7 +45,7 @@ let encrypt ~key ~counter ~message ~auth_text =
     Or_error.error_s [%message "failed to encrypt w/ aead" (status : int)]
   else Or_error.return (fst c_with_len)
 
-let decrypt ~key ~counter ~ciphertext ~auth_text =
+let aead_decrypt ~key ~counter ~ciphertext ~auth_text =
   let key = Key.shared_to_bytes key in
   let nonce = nonce_from_counter counter in
   let c_with_len = add_len ciphertext in
@@ -70,10 +70,10 @@ let%expect_test "test-aead-encrypt-decrypt" =
   let key = Key.random_buffer 32 |> Key.shared_of_bytes in
   let counter = Int.to_int64 50000 in
   let ciphertext =
-    encrypt ~key ~counter ~message ~auth_text |> Or_error.ok_exn
+    aead_encrypt ~key ~counter ~message ~auth_text |> Or_error.ok_exn
   in
   let thing =
-    decrypt ~key ~counter ~ciphertext ~auth_text |> Or_error.ok_exn
+    aead_decrypt ~key ~counter ~ciphertext ~auth_text |> Or_error.ok_exn
   in
   print_string (Bytes.to_string thing) ;
   [%expect {| test |}]

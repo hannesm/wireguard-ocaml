@@ -13,3 +13,5 @@ val secret_to_bytes : secret_key -> bytes
 val secret_of_bytes : bytes -> secret_key
 
 val random_buffer : int -> bytes
+val is_zero : bytes -> bool
+val set_zero : bytes  -> unit

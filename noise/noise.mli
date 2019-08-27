@@ -1,10 +1,10 @@
 val first_message :
      msg_sender:bytes
   -> timestamp:bytes
-  -> e_i:Crypto.Key.keypair
+  -> e_i:Crypto.keypair
   -> s_r_public:bytes
-  -> s_i:Crypto.Key.keypair
-  -> ((Crypto.Key.shared_key * bytes) * bytes) Core.Or_error.t
+  -> s_i:Crypto.keypair
+  -> ((Crypto.shared_key * bytes) * bytes) Core.Or_error.t
 
 (*val second_message :
      ?q:bytes

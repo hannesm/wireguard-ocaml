@@ -1,14 +1,14 @@
 open Core
 open Key
 
-val encrypt :
+val xaead_encrypt :
      key:shared_key
   -> nonce:Bytes.t
   -> message:Bytes.t
   -> auth_text:Bytes.t
   -> Bytes.t Or_error.t
 
-val decrypt :
+val xaead_decrypt :
      key:shared_key
   -> nonce:Bytes.t
   -> ciphertext:Bytes.t
