@@ -4,6 +4,7 @@ open Stdint
 type t = {seconds: uint64; nanoseconds: uint32}
 
 let base = Uint64.of_string "0x400000000000000a"
+let billion = Uint64.of_int 1000000000
 
 let time_to_t time =
   let since_epoch = Time_ns.to_span_since_epoch time in
@@ -11,20 +12,34 @@ let time_to_t time =
     Time_ns.Span.to_int63_ns since_epoch
     |> Int63.to_int64 |> Uint64.of_int64 in
   let seconds, nanoseconds =
-    let thousand = Uint64.of_int 1000000000 in
-    Uint64.(base + (ns_since_epoch / thousand), rem ns_since_epoch thousand)
+    Uint64.(base + (ns_since_epoch / billion), rem ns_since_epoch billion)
   in
   {seconds; nanoseconds= Uint64.to_uint32 nanoseconds}
 
-let t_to_bytes {seconds; nanoseconds} =
+let to_bytes {seconds; nanoseconds} =
   let buf = Bytes.create 12 in
   Uint64.to_bytes_big_endian seconds buf 0 ;
   Uint32.to_bytes_big_endian nanoseconds buf 8 ;
   buf
 
-(*let bytes_to_t buf = let secs = EndianBytes.BigEndian.get_int64 buf 0 in
-  let ns = EndianBytes.BigEndian.get_int32 buf 8 in {seconds=secs;
-  nanoseconds=ns} ;;*)
+let of_bytes buf =
+  let secs = Uint64.of_bytes_big_endian buf 0 in
+  let ns = Uint32.of_bytes_big_endian buf 8 in
+  {seconds=secs; nanoseconds=ns}
+;;
+
+let to_time t =
+  let ns_total = Uint64.(billion * t.seconds + of_uint32 t.nanoseconds)
+  |> Uint64.to_int64
+  |> Int63.of_int64_exn in
+  Time_ns.of_int63_ns_since_epoch ns_total
+;;
+
+let diff t1 t2 =
+  let time_1, time_2 = to_time t1, to_time t2 in
+  Time_ns.diff time_1 time_2
+;;
+
 let whitener_mask = Uint32.of_int (0x1000000 - 1)
 
 let whiten {seconds; nanoseconds} =
@@ -38,9 +53,11 @@ let whiten {seconds; nanoseconds} =
   {seconds; nanoseconds}
 
 (* CR crichoux: add tests here, verify all strings *)
-let get_timestamp time = time |> time_to_t |> whiten |> t_to_bytes
+let get_timestamp time = time |> time_to_t |> whiten
 let now () = get_timestamp (Time_ns.now ())
-let after (t1 : bytes) (t2 : bytes) = Bytes.compare t1 t2 > 0
+let after (t1) (t2) =
+  let b1, b2 = to_bytes t1, to_bytes t2 in
+  Bytes.compare b1 b2 > 0
 
 let%expect_test "test_tai64n_monotonic" =
   let old = ref (now ()) in

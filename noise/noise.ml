@@ -12,6 +12,8 @@ let _wg_identifier = "WireGuard v1 zx2c4 Jason@zx2c4.com"
 let _wg_label_MAC1 = "mac1----"
 let _wg_label_cookie = "cookie--"
 
+let handshake_initiation_rate : Time_ns.Span.t = Time_ns.Span.of_int_ms 20
+
 (* initiator.chaining_key = HASH(CONSTRUCTION)*)
 (* CR crichoux: put these in an init function *)
 let initial_chain_key =
@@ -79,7 +81,8 @@ let create_message_initiation
   Message.blit_handshake_initiation_signed_static ret signed_static ;
   (* encrypt timestamp *)
   let timestamp =
-    match timestamp with Some ts -> ts | None -> Tai64n.now () in
+    (match timestamp with Some ts -> ts | None -> Tai64n.now ())
+    |> Tai64n.to_bytes in
   let kappa =
     Handshake.mix_key2 handshake
       (Handshake.get_t_precomputed_static_static handshake) in
@@ -107,52 +110,82 @@ let mix_hash ~hash bytes : unit Or_error.t =
   let%map res = hash2 hash bytes in
   Bytes.blit ~src:res ~src_pos:0 ~dst:hash ~dst_pos:0 ~len:32
 
-let consume_message_initiation ~(msg : Message.handshake_initiation)
-    ~(local_static_public : Public.key) : unit Or_error.t =
+(* CR crichoux: dummy type, will fill out better later *)
+type peer = {handshake: Handshake.t}
+
+let consume_message_initiation
+    ?(* for testing only! should not be passed in in prod. *)
+    peer ~(msg : Message.handshake_initiation) ~(local_static : keypair) :
+    peer Or_error.t =
   let hash = Bytes.copy initial_chain_hash in
   let chain_key = Bytes.copy initial_chain_key in
-  let%bind () = mix_hash ~hash (Public.to_bytes local_static_public) in
-  let%bind () =
-    mix_hash ~hash (Message.get_message_initiation_ephemeral msg) in
-  mix_key ~chain_key msg.ephemeral ;
+  let%bind () = mix_hash ~hash (Public.to_bytes local_static.public) in
+  let ephemeral = Message.get_handshake_initiation_ephemeral msg in
+  let%bind () = mix_hash ~hash ephemeral in
+  mix_key ~chain_key ephemeral ;
   (* CR crichoux: take care of this device.staticIdentity.RLock() defer
      device.staticIdentity.RUnlock() *)
 
   (* decrypt static key *)
   let%bind ephemeral_shared =
-    dh ~secret:local_static_public ~public:msg.ephemeral in
-  let%bind kappa =
-    mix_key2 ~hash ~bytes:(Shared.to_bytes ephemeral_shared) in
+    dh ~secret:local_static.secret ~public:(Public.of_bytes ephemeral) in
+  let kappa = mix_key2 ~chain_key (Shared.to_bytes ephemeral_shared) in
+  let signed_static = Message.get_handshake_initiation_signed_static msg in
   let%bind peer_pk =
     aead_decrypt ~key:kappa ~counter:(Int64.of_int 0)
-      ~ciphertext:msg.signed_static ~auth_text:handshake.hash in
-  let%bind () = mix_hash ~hash ~bytes:msg.signed_static in
+      ~ciphertext:signed_static ~auth_text:hash in
+  let%bind () = mix_hash ~hash signed_static in
   (* lookup peer *)
-  let%bind peer = device.lookup_peer peerpk in
+  let peer =
+    match peer with Some peer -> peer | None -> failwith "unimplemented"
+  in
+  let handshake = peer.handshake in
+  (* CR crichoux: change this to something sensical.... *)
+  assert (Bytes.equal peer_pk (Handshake.get_t_remote_static handshake));
+  let pss = Handshake.get_t_precomputed_static_static handshake in
+  (* CR crichoux: make this a function *)
   let%bind () =
     Result.ok_if_true
-      (Shared.is_zero peer.handshake.precomputed_static_static)
+      (not (Crypto.is_zero pss))
       ~error:(Error.of_string "handshake precomputed static is zero") in
   (* verify identity *)
-  let%bind kappa =
-    mix_key2 ~chain_key ~bytes:peer.handshake.precomputed_static_static
-  in
+  let kappa = mix_key2 ~chain_key pss in
+  let signed_timestamp =
+    Message.get_handshake_initiation_signed_timestamp msg in
   let%bind timestamp =
     aead_decrypt ~key:kappa ~counter:(Int64.of_int 0)
-      ~ciphertext:msg.signed_timestamp ~auth_text:handshake.hash in
-  let%bind () = mix_hash ~hash ~bytes:msg.timestamp in
+      ~ciphertext:signed_timestamp ~auth_text:hash in
+  let%bind () = mix_hash ~hash signed_timestamp in
   (* CR crichoux: take care of this handshake.mutex.RLock() *)
 
   (* protect against replays, floods *)
-  let%bind () =
-    let ok = Tai64n.after timestamp handshake.lastTimestamp in
+  let%map () =
+    let last_timestamp = Handshake.get_t_last_timestamp handshake in
+    let ok =
+      Tai64n.after
+        (Tai64n.of_bytes timestamp)
+        (Tai64n.of_bytes last_timestamp) in
     (* CR crichoux: figure this one out *)
-    (* let ok = ok && time.Since(handshake.lastInitiationConsumption) >
-       HandshakeInitationRate *)
+    let ok =
+      let last_init_consump =
+        Handshake.get_t_last_initiation_consumption handshake in
+      ok
+      && Time_ns.Span.(Tai64n.diff (Tai64n.now ()) (Tai64n.of_bytes last_init_consump)
+         > handshake_initiation_rate) in
     Result.ok_if_true ok
       ~error:(Error.of_string "insufficient time since last initiation")
   in
-  ()
+  Handshake.blit_t_hash handshake hash ;
+  Handshake.blit_t_chain_key handshake chain_key ;
+  let sender = Message.get_handshake_initiation_sender msg in
+  Handshake.set_t_remote_index handshake sender ;
+  Handshake.blit_t_remote_ephemeral handshake ephemeral ;
+  Handshake.blit_t_last_timestamp handshake timestamp ;
+  Handshake.blit_t_last_initiation_consumption handshake (Tai64n.now () |> Tai64n.to_bytes) ;
+  Handshake.set_t_state handshake Handshake.Handshake_initiation_consumed ;
+  Crypto.zero_buffer hash ;
+  Crypto.zero_buffer chain_key ;
+  {handshake}
 
 let int_list_to_bytes int_list =
   let char_list = List.map ~f:char_of_int int_list in
@@ -213,7 +246,7 @@ let%expect_test "test_create_message_initiation" =
     |> Crypto.Public.of_bytes in
   (* timestamp *)
   let timestamp =
-    int_list_to_bytes [64; 0; 0; 0; 93; 102; 199; 171; 9; 0; 0; 0] in
+    int_list_to_bytes [64; 0; 0; 0; 93; 102; 199; 171; 9; 0; 0; 0] |> Tai64n.of_bytes in
   let static_keypair1 =
     {secret= dev1_static_private; public= dev1_static_public} in
   let static_keypair2 =
@@ -222,17 +255,36 @@ let%expect_test "test_create_message_initiation" =
     {secret= dev1_ephemeral_private; public= dev1_ephemeral_public} in
   let _ephemeral_keypair2 =
     {secret= dev2_ephemeral_private; public= dev2_ephemeral_public} in
-  let handshake = Handshake.new_handshake () in
-  Handshake.blit_t_remote_static handshake
+  let handshake1 = Handshake.new_handshake () in
+  let handshake2 = Handshake.new_handshake () in
+  Handshake.blit_t_remote_static handshake1
     (Public.to_bytes static_keypair2.public) ;
-  let shared_static_static =
+  Handshake.blit_t_remote_static handshake2
+    (Public.to_bytes static_keypair1.public) ;
+  let shared_static_static1 =
     Crypto.dh ~secret:static_keypair1.secret ~public:static_keypair2.public
     |> Or_error.ok_exn |> Shared.to_bytes in
-  Handshake.blit_t_precomputed_static_static handshake shared_static_static ;
+  Handshake.blit_t_precomputed_static_static handshake1
+    shared_static_static1 ;
+  let shared_static_static2 =
+    Crypto.dh ~secret:static_keypair2.secret ~public:static_keypair1.public
+    |> Or_error.ok_exn |> Shared.to_bytes in
+  Handshake.blit_t_precomputed_static_static handshake1
+    shared_static_static2 ;
   (* set precomputer_static_static *)
-  Message.hexdump_message_initiation
-    (create_message_initiation ~local_ephemeral:ephemeral_keypair1
-       ~timestamp ~local_static_public:static_keypair1.public ~handshake) ;
+  let handshake_initiation =
+    create_message_initiation ~local_ephemeral:ephemeral_keypair1 ~timestamp
+      ~local_static_public:static_keypair1.public ~handshake:handshake1 |> Or_error.ok_exn
+  in
+  Message.hexdump_handshake_initiation handshake_initiation ;
+  let _ =
+    consume_message_initiation
+    (* for testing only! should not be passed in in prod. *)
+      ~peer:{handshake=handshake2} ~msg:handshake_initiation
+      ~local_static:static_keypair2 in
+  (*Message.hexdump_handshake_response
+    (create_message_response ~local_ephemeral:ephemeral_keypair1 ~timestamp
+       ~local_static_public:static_keypair1.public ~handshake:handshake1) ;*)
   [%expect
     {|
   handshake_initiation = {

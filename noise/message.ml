@@ -62,6 +62,15 @@ let blit_handshake_initiation_signed_timestamp t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_handshake_initiation_signed_timestamp cs 0 t
 
+let get_handshake_initiation_ephemeral t =
+  get_handshake_initiation_ephemeral t |> Cstruct.to_bytes
+
+let get_handshake_initiation_signed_static t =
+  get_handshake_initiation_signed_static t |> Cstruct.to_bytes
+
+let get_handshake_initiation_signed_timestamp t =
+  get_handshake_initiation_signed_timestamp t |> Cstruct.to_bytes
+
 type%cstruct handshake_response =
   { msg_type: uint32_t
   ; sender: uint32_t

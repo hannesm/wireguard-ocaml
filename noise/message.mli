@@ -10,6 +10,9 @@ val new_handshake_initiation : unit -> handshake_initiation
 val set_handshake_initiation_sender :
   handshake_initiation -> Cstruct.uint32 -> unit
 
+val get_handshake_initiation_sender :
+  handshake_initiation -> Cstruct.uint32
+
 val blit_handshake_initiation_ephemeral :
   handshake_initiation -> bytes -> unit
 
@@ -18,3 +21,11 @@ val blit_handshake_initiation_signed_static :
 
 val blit_handshake_initiation_signed_timestamp :
   handshake_initiation -> bytes -> unit
+
+val get_handshake_initiation_ephemeral : handshake_initiation -> bytes
+val get_handshake_initiation_signed_static : handshake_initiation -> bytes
+
+val get_handshake_initiation_signed_timestamp :
+  handshake_initiation -> bytes
+
+val hexdump_handshake_response : handshake_response -> unit

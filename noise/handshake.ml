@@ -45,6 +45,10 @@ let blit_t_remote_static t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_t_remote_static cs 0 t
 
+  let blit_t_remote_ephemeral t bytes =
+    let cs = Cstruct.of_bytes bytes in
+    blit_t_remote_ephemeral cs 0 t
+
 let get_t_local_ephemeral_public t =
   get_t_local_ephemeral_public t |> Cstruct.to_bytes
 
@@ -68,6 +72,22 @@ let blit_t_ephemeral_keypair t (keypair : Crypto.keypair) =
   blit_t_local_ephemeral_private cs 0 t ;
   let cs = Crypto.Public.to_bytes keypair.public |> Cstruct.of_bytes in
   blit_t_local_ephemeral_public cs 0 t
+
+let get_t_last_timestamp t = get_t_last_timestamp t |> Cstruct.to_bytes
+
+let blit_t_last_timestamp t bytes =
+  let cs = Cstruct.of_bytes bytes in
+  blit_t_last_timestamp cs 0 t
+
+let get_t_last_initiation_consumption t = get_t_last_initiation_consumption t |> Cstruct.to_bytes
+
+let blit_t_last_initiation_consumption t bytes =
+  let cs = Cstruct.of_bytes bytes in
+  blit_t_last_initiation_consumption cs 0 t
+;;
+
+let set_t_state t state =
+  set_t_state t (noise_state_to_int state)
 
 open Or_error.Let_syntax
 
