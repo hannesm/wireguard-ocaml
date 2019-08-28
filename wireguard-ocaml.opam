@@ -8,11 +8,13 @@ homepage: "https://github.com/laudecay/wireguard-ocaml"
 bug-reports: "https://github.com/laudecay/wireguard-ocaml/issues"
 depends: [
   "dune" {>= "1.11"}
-  "digestif"
   "core"
+  "cstruct"
+  "digestif"
   "ctypes"
   "hex"
   "ocplib-endian"
+  "ppx_cstruct"
   "ppx_inline_test"
 ]
 build: [

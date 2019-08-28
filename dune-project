@@ -12,6 +12,6 @@
 
 (package
   (name wireguard-ocaml)
-  (depends digestif core ctypes hex ocplib-endian ppx_inline_test)
+  (depends core cstruct digestif ctypes hex ocplib-endian ppx_cstruct ppx_inline_test)
   (synopsis "Wireguard, but this time it's in ocaml")
 )

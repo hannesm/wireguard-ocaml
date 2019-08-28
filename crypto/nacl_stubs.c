@@ -35,6 +35,13 @@ CAMLprim value caml_crypto_gen_keypair(value pk, value sk) {
   CAMLreturn(Val_int(crypto_kx_keypair(Bytes_val(pk), Bytes_val(sk))));
 }
 
+//CURRENTLY DOES NOT WORK!! DO NOT USE!! 
+/*
+CAMLprim value caml_crypto_gen_pubkey_from_ed25519_secret(value pk, value sk) {
+  CAMLparam2 (pk, sk);
+  CAMLreturn(Val_int(crypto_scalarmult_ed25519_base(Bytes_val(pk), Bytes_val(sk))));
+}*/
+
 CAMLprim value caml_crypto_dh(value shared_buf, value sk, value pk) {
   CAMLparam3 (pk, sk, shared_buf);
   CAMLreturn(

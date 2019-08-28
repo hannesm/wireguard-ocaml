@@ -1,6 +1,6 @@
 (library
   (name noise)
-  (libraries core crypto stdint tai64n)
+  (libraries core digestif crypto stdint tai64n cstruct)
   (inline_tests)
-  (preprocess (pps ppx_inline_test ppx_deriving ppx_jane))
+  (preprocess (pps ppx_cstruct ppx_inline_test ppx_deriving ppx_jane))
 )

@@ -1,15 +1,6 @@
-open Core
-open Crypto
-
-module Noise_message : sig
-  type t
-end
-
-module Handshake : sig
-  type t
-end
-
 val create_message_initiation :
-     local_static_public:Public.key
+     ?timestamp:bytes
+  -> ?local_ephemeral:Crypto.keypair
+  -> local_static_public:Crypto.Public.key
   -> handshake:Handshake.t
-  -> Noise_message.t Or_error.t
+  -> Message.handshake_initiation Core.Or_error.t

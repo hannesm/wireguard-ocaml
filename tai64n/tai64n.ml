@@ -9,8 +9,7 @@ let time_to_t time =
   let since_epoch = Time_ns.to_span_since_epoch time in
   let ns_since_epoch =
     Time_ns.Span.to_int63_ns since_epoch
-    |> Int63.to_int64 |> Uint64.of_int64
-  in
+    |> Int63.to_int64 |> Uint64.of_int64 in
   let seconds, nanoseconds =
     let thousand = Uint64.of_int 1000000000 in
     Uint64.(base + (ns_since_epoch / thousand), rem ns_since_epoch thousand)
@@ -33,25 +32,21 @@ let whiten {seconds; nanoseconds} =
   (*print_s [%message "nanoseconds before whitening" (Uint32.to_string
     nanoseconds :string)]; *)
   let nanoseconds =
-    Uint32.logand nanoseconds (Uint32.lognot whitener_mask)
-  in
+    Uint32.logand nanoseconds (Uint32.lognot whitener_mask) in
   (* print_s [%message "nanoseconds after whitening" (Uint32.to_string
      nanoseconds: string)]; *)
   {seconds; nanoseconds}
 
 (* CR crichoux: add tests here, verify all strings *)
 let get_timestamp time = time |> time_to_t |> whiten |> t_to_bytes
-
 let now () = get_timestamp (Time_ns.now ())
-
 let after (t1 : bytes) (t2 : bytes) = Bytes.compare t1 t2 > 0
 
 let%expect_test "test_tai64n_monotonic" =
   let old = ref (now ()) in
   let sleep_period =
     Time_ns.Span.to_sec
-      (Time_ns.Span.of_int_ns (Uint32.to_int whitener_mask))
-  in
+      (Time_ns.Span.of_int_ns (Uint32.to_int whitener_mask)) in
   for _ = 0 to 50 do
     let next = now () in
     if after next !old then print_s [%message "whitening insufficient"] ;

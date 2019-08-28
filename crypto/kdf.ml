@@ -39,8 +39,7 @@ let%expect_test "check_kdf" =
   let key =
     Bytes.of_string
       "\x60\xe2\x6d\xae\xf3\x27\xef\xc0\x2e\xc3\x35\xe2\xa0\x25\xd2\xd0\x16\xeb\x42\x06\xf8\x72\x77\xf5\x2d\x38\xd1\x98\x8b\x78\xcd\x36"
-    |> Shared.of_bytes
-  in
+    |> Shared.of_bytes in
   let tau_1, tau_2, tau_3 = kdf_3 ~key input in
   print_string (Shared.to_hex tau_1) ;
   print_string (Shared.to_hex tau_2) ;

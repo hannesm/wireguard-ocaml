@@ -17,8 +17,7 @@ let hash2 input1 input2 =
     let buf = Bytes.create (l_1 + l_2) in
     Bytes.blit ~src:input1 ~src_pos:0 ~dst:buf ~dst_pos:0 ~len:l_1 ;
     Bytes.blit ~src:input2 ~src_pos:0 ~dst:buf ~dst_pos:l_1 ~len:l_2 ;
-    buf
-  in
+    buf in
   hash input
 
 let%expect_test "check_blake2s" =
@@ -41,8 +40,7 @@ let mac ~input ~key =
   let out_buf = Bytes.create mac_bytes_out in
   let key = Key.Shared.to_bytes key in
   let status =
-    mac_ input (Bytes.length input) key (Bytes.length key) out_buf
-  in
+    mac_ input (Bytes.length input) key (Bytes.length key) out_buf in
   if status < 0 then
     Or_error.error_s [%message "failed to mac" (status : int)]
   else Or_error.return out_buf
@@ -57,9 +55,9 @@ let%expect_test "check_mac" =
   [%expect {| 3fb4 7e62 3d00 31b9 7f5f a77b 63ad d3c5 |}]
 
 let hmac ~input ~key =
+  let open Digestif in
   let key = Key.Shared.to_bytes key in
-  Digestif.BLAKE2S.hmac_bytes ~key input
-  |> Digestif.BLAKE2S.to_raw_string |> Bytes.of_string
+  BLAKE2S.hmac_bytes ~key input |> BLAKE2S.to_raw_string |> Bytes.of_string
 
 let%expect_test "check_hmac" =
   let input = Bytes.of_string "Some data" in

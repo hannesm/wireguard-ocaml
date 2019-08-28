@@ -1,4 +1,4 @@
-profile = ocamlformat
+profile = compact
 break-cases = fit
 margin = 77
 parse-docstrings = true
