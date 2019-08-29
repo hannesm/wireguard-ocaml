@@ -1,3 +1,5 @@
+(* CR crichoux: sort these lol *)
+
 (* size of handshake initation message *)
 let msg_initiation_size = 148
 
@@ -11,8 +13,7 @@ let _msg_cookie_reply_size = 64
 let msg_transport_header_size = 16
 
 (* size of empty transport *)
-let msg_transport_size =
-  msg_transport_header_size + Crypto.poly1305_tag_size
+let msg_transport_size = msg_transport_header_size + Crypto.poly1305_tag_size
 
 (* size of keepalive *)
 let _msg_keep_alive_size = msg_transport_size
@@ -82,6 +83,25 @@ type%cstruct handshake_response =
 [@@little_endian]
 
 type handshake_response = Cstruct.t
+
+let new_handshake_response () =
+  let ret = Cstruct.create sizeof_handshake_initiation in
+  set_handshake_response_msg_type ret (message_type_to_int HANDSHAKE_RESPONSE) ;
+  ret
+
+let blit_handshake_response_ephemeral t bytes =
+  let cs = Cstruct.of_bytes bytes in
+  blit_handshake_response_ephemeral cs 0 t
+
+let get_handshake_response_signed_empty t =
+  get_handshake_response_signed_empty t |> Cstruct.to_bytes
+
+let blit_handshake_response_signed_empty t bytes =
+  let cs = Cstruct.of_bytes bytes in
+  blit_handshake_response_signed_empty cs 0 t
+
+let get_handshake_response_ephemeral t =
+  get_handshake_response_ephemeral t |> Cstruct.to_bytes
 
 type%cstruct cookie_reply =
   { msg_type: uint32_t

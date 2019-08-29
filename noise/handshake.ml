@@ -1,3 +1,5 @@
+(* CR crichoux: sort these lol *)
+
 open Core
 open Crypto
 
@@ -10,6 +12,8 @@ type%cenum noise_state =
   | Handshake_response_created
   | Handshake_response_consumed
 [@@uint8_t]
+
+let sexp_of_noise_state ns = noise_state_to_int ns |> sexp_of_int
 
 type%cstruct t =
   { state: uint8_t
@@ -30,7 +34,9 @@ type%cstruct t =
   ; last_sent_handshake: uint8_t [@len 12] }
 [@@little_endian]
 
-let new_handshake () = Cstruct.create sizeof_t
+let new_handshake () =
+  let buf = Bytes.make sizeof_t '\x00' in
+  Cstruct.of_bytes buf
 
 let get_t_precomputed_static_static t =
   get_t_precomputed_static_static t |> Cstruct.to_bytes
@@ -39,15 +45,17 @@ let blit_t_precomputed_static_static t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_t_precomputed_static_static cs 0 t
 
+let get_t_preshared_key t = get_t_preshared_key t |> Cstruct.to_bytes
 let get_t_remote_static t = get_t_remote_static t |> Cstruct.to_bytes
+let get_t_remote_ephemeral t = get_t_remote_ephemeral t |> Cstruct.to_bytes
 
 let blit_t_remote_static t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_t_remote_static cs 0 t
 
-  let blit_t_remote_ephemeral t bytes =
-    let cs = Cstruct.of_bytes bytes in
-    blit_t_remote_ephemeral cs 0 t
+let blit_t_remote_ephemeral t bytes =
+  let cs = Cstruct.of_bytes bytes in
+  blit_t_remote_ephemeral cs 0 t
 
 let get_t_local_ephemeral_public t =
   get_t_local_ephemeral_public t |> Cstruct.to_bytes
@@ -79,15 +87,16 @@ let blit_t_last_timestamp t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_t_last_timestamp cs 0 t
 
-let get_t_last_initiation_consumption t = get_t_last_initiation_consumption t |> Cstruct.to_bytes
+let get_t_last_initiation_consumption t =
+  get_t_last_initiation_consumption t |> Cstruct.to_bytes
 
 let blit_t_last_initiation_consumption t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_t_last_initiation_consumption cs 0 t
-;;
 
-let set_t_state t state =
-  set_t_state t (noise_state_to_int state)
+(* ok_exn safe because you can only set this from the outside w/ set_t_state *)
+let get_t_state t = get_t_state t |> int_to_noise_state |> Option.value_exn
+let set_t_state t state = set_t_state t (noise_state_to_int state)
 
 open Or_error.Let_syntax
 
@@ -100,6 +109,12 @@ let mix_key2 handshake bytes : Shared.key =
     kdf_2 ~key:(Shared.of_bytes (get_t_chain_key handshake)) bytes in
   blit_t_chain_key handshake (Shared.to_bytes c_i) ;
   kappa
+
+let mix_key3 handshake bytes : Shared.key * Shared.key =
+  let c_i, tau, kappa =
+    kdf_3 ~key:(Shared.of_bytes (get_t_chain_key handshake)) bytes in
+  blit_t_chain_key handshake (Shared.to_bytes c_i) ;
+  (tau, kappa)
 
 let mix_hash handshake bytes : unit Or_error.t =
   let%map result = hash2 (get_t_hash handshake) bytes in
