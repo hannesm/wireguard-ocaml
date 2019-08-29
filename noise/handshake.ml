@@ -94,6 +94,13 @@ let blit_t_last_initiation_consumption t bytes =
   let cs = Cstruct.of_bytes bytes in
   blit_t_last_initiation_consumption cs 0 t
 
+let zero_t_chain_key t = blit_t_chain_key t (Bytes.make 32 '\x00')
+let zero_t_hash t = blit_t_hash t (Bytes.make 32 '\x00')
+
+let zero_t_local_ephemeral t =
+  blit_t_local_ephemeral_private (Bytes.make 32 '\x00' |> Cstruct.of_bytes) 0 t ;
+  blit_t_local_ephemeral_public (Bytes.make 32 '\x00' |> Cstruct.of_bytes) 0 t
+
 (* ok_exn safe because you can only set this from the outside w/ set_t_state *)
 let get_t_state t = get_t_state t |> int_to_noise_state |> Option.value_exn
 let set_t_state t state = set_t_state t (noise_state_to_int state)

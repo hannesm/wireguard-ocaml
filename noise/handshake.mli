@@ -40,6 +40,9 @@ val blit_t_last_initiation_consumption : t -> bytes -> unit
 val set_t_state : t -> noise_state -> unit
 val set_t_local_index : t -> uint32 -> unit
 val set_t_remote_index : t -> uint32 -> unit
+val zero_t_chain_key : t -> unit
+val zero_t_hash : t -> unit
+val zero_t_local_ephemeral : t -> unit
 val mix_key : t -> bytes -> unit
 val mix_key2 : t -> bytes -> Crypto.Shared.key
 val mix_key3 : t -> bytes -> Crypto.Shared.key * Crypto.Shared.key
