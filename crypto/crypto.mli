@@ -7,8 +7,7 @@ val copy_buffer : src:bytes -> dst:bytes -> unit Or_error.t
 val equals : bytes -> bytes -> bool
 val is_zero : bytes -> bool
 
-(* CR crichoux: add assertions about things being the right lengths
-   everywhere *)
+(* CR crichoux: add assertions about things being the right lengths everywhere *)
 module type Key_utils = sig
   type key [@@deriving sexp_of]
 

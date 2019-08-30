@@ -93,8 +93,7 @@ let xaead_encrypt ~key ~nonce ~message ~auth_text =
         + crypto_aead_chacha20poly1305_ABYTES ) in
     add_len c_buf in
   let auth_with_len = add_len auth_text in
-  let status =
-    xaead_encrypt_ c_with_len m_with_len auth_with_len nonce key in
+  let status = xaead_encrypt_ c_with_len m_with_len auth_with_len nonce key in
   if status < 0 then
     Or_error.error_s [%message "failed to encrypt w/ xaead" (status : int)]
   else Or_error.return (fst c_with_len)
@@ -109,8 +108,7 @@ let xaead_decrypt ~key ~nonce ~ciphertext ~auth_text =
         - crypto_aead_chacha20poly1305_ABYTES ) in
     add_len m_buf in
   let auth_with_len = add_len auth_text in
-  let status =
-    xaead_decrypt_ m_with_len c_with_len auth_with_len nonce key in
+  let status = xaead_decrypt_ m_with_len c_with_len auth_with_len nonce key in
   if status < 0 then
     Or_error.error_s [%message "failed to decrypt w/ xaead" (status : int)]
   else Or_error.return (fst m_with_len)
@@ -124,8 +122,7 @@ let%expect_test "test-aead-encrypt-decrypt" =
   let ciphertext =
     aead_encrypt ~key ~counter ~message ~auth_text |> Or_error.ok_exn in
   let thing =
-    aead_decrypt ~key ~counter ~ciphertext ~auth_text |> Or_error.ok_exn
-  in
+    aead_decrypt ~key ~counter ~ciphertext ~auth_text |> Or_error.ok_exn in
   print_string (Bytes.to_string thing) ;
   [%expect {| test |}]
 
@@ -138,7 +135,6 @@ let%expect_test "test-xaead-encrypt-decrypt" =
   let ciphertext =
     xaead_encrypt ~key ~nonce ~message ~auth_text |> Or_error.ok_exn in
   let thing =
-    xaead_decrypt ~key ~nonce ~ciphertext ~auth_text |> Or_error.ok_exn
-  in
+    xaead_decrypt ~key ~nonce ~ciphertext ~auth_text |> Or_error.ok_exn in
   print_string (Bytes.to_string thing) ;
   [%expect {| test |}]

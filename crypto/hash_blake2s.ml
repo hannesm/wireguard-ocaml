@@ -39,10 +39,8 @@ let mac_bytes_out = 16
 let mac ~input ~key =
   let out_buf = Bytes.create mac_bytes_out in
   let key = Key.Shared.to_bytes key in
-  let status =
-    mac_ input (Bytes.length input) key (Bytes.length key) out_buf in
-  if status < 0 then
-    Or_error.error_s [%message "failed to mac" (status : int)]
+  let status = mac_ input (Bytes.length input) key (Bytes.length key) out_buf in
+  if status < 0 then Or_error.error_s [%message "failed to mac" (status : int)]
   else Or_error.return out_buf
 
 let%expect_test "check_mac" =

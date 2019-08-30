@@ -29,5 +29,7 @@ tun/
 zero bytes out
 optimize
 test harder
+make sure all bytes operations have checks on size
+can you make stronger types for safety with all these bytes things?
 get all the CRs
 multithreading....?

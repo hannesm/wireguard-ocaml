@@ -3,16 +3,13 @@ open Stdint
 open Or_error.Let_syntax
 open Crypto
 
-(* CR crichoux: this is way too time consuming. worry about clearing and
-   managing memory later. *)
+(* CR crichoux: worry about clearing and managing memory later. *)
 
 let empty_bytes () = Bytes.create 0
 
 (* various nothing-up-my-sleeve constants *)
 let _noise_construction = "Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s"
 let _wg_identifier = "WireGuard v1 zx2c4 Jason@zx2c4.com"
-let _wg_label_MAC1 = "mac1----"
-let _wg_label_cookie = "cookie--"
 let handshake_initiation_rate : Time_ns.Span.t = Time_ns.Span.of_int_ms 20
 
 (* initiator.chaining_key = HASH(CONSTRUCTION)*)

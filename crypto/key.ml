@@ -11,20 +11,19 @@ let zero_buffer buf = Bytes.fill ~pos:0 ~len:(Bytes.length buf) buf '\x00'
 let copy_buffer ~src ~dst =
   if not (Bytes.length src = Bytes.length dst) then
     Or_error.error_string "trying to copy buffers of unequal lengths"
-  else
-    Ok (Bytes.blit ~src ~src_pos:0 ~dst ~dst_pos:0 ~len:(Bytes.length src))
+  else Ok (Bytes.blit ~src ~src_pos:0 ~dst ~dst_pos:0 ~len:(Bytes.length src))
 
 (* let imin (a : int) b = if a < b then a else b
 
-   let equals b1 b2 = let open Stdint in let rec go ok i = function | n when
-   n >= 8 -> go ( Uint64.( of_bytes_little_endian b1 i =
-   of_bytes_little_endian b2 i) && ok ) (i + 8) (n - 8) | n when n >= 4 ->
-   go ( Uint32.( of_bytes_little_endian b1 i = of_bytes_little_endian b2 i)
-   && ok ) (i + 4) (n - 4) | n when n >= 2 -> go ( Uint16.(
-   of_bytes_little_endian b1 i = of_bytes_little_endian b2 i) && ok ) (i +
-   2) (n - 2) | 1 -> Uint8.(of_bytes_little_endian b1 i =
-   of_bytes_little_endian b2 i) && ok | _ -> ok in let n1 = Bytes.length b1
-   and n2 = Bytes.length b2 in go true 0 (imin n1 n2) && n1 = n2 *)
+   let equals b1 b2 = let open Stdint in let rec go ok i = function | n when n
+   >= 8 -> go ( Uint64.( of_bytes_little_endian b1 i = of_bytes_little_endian
+   b2 i) && ok ) (i + 8) (n - 8) | n when n >= 4 -> go ( Uint32.(
+   of_bytes_little_endian b1 i = of_bytes_little_endian b2 i) && ok ) (i + 4)
+   (n - 4) | n when n >= 2 -> go ( Uint16.( of_bytes_little_endian b1 i =
+   of_bytes_little_endian b2 i) && ok ) (i + 2) (n - 2) | 1 ->
+   Uint8.(of_bytes_little_endian b1 i = of_bytes_little_endian b2 i) && ok | _
+   -> ok in let n1 = Bytes.length b1 and n2 = Bytes.length b2 in go true 0
+   (imin n1 n2) && n1 = n2 *)
 
 (* CR crichoux: figure out constant time equality *)
 let equals b1 b2 = Bytes.equal b1 b2
@@ -62,8 +61,7 @@ module Make_key_utils (S : sig end) : Key_utils = struct
       | None -> ()
       | Some len -> assert (Bytes.length bytes = len) ) ;
       Ok bytes
-    with _ ->
-      Or_error.error_string "failed to convert key from hex string"
+    with _ -> Or_error.error_string "failed to convert key from hex string"
 
   let set_zero (bytes : key) : unit = zero_buffer bytes
   let of_bytes bytes = bytes

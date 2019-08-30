@@ -64,6 +64,12 @@ let blit_handshake_initiation_signed_static =
 let blit_handshake_initiation_signed_timestamp =
   make_nice_blit blit_handshake_initiation_signed_timestamp
 
+let blit_handshake_initiation_mac1 =
+  make_nice_blit blit_handshake_initiation_mac1
+
+let blit_handshake_initiation_mac2 =
+  make_nice_blit blit_handshake_initiation_mac2
+
 let get_handshake_initiation_ephemeral t =
   get_handshake_initiation_ephemeral t |> Cstruct.to_bytes
 
@@ -72,6 +78,8 @@ let get_handshake_initiation_signed_static t =
 
 let get_handshake_initiation_signed_timestamp t =
   get_handshake_initiation_signed_timestamp t |> Cstruct.to_bytes
+
+let handshake_initiation_to_cstruct t = t
 
 type%cstruct handshake_response =
   { msg_type: uint32_t
@@ -86,9 +94,12 @@ type%cstruct handshake_response =
 type handshake_response = Cstruct.t
 
 let new_handshake_response () =
-  let ret = Cstruct.create sizeof_handshake_initiation in
+  let ret = Cstruct.create sizeof_handshake_response in
   set_handshake_response_msg_type ret (message_type_to_int HANDSHAKE_RESPONSE) ;
   ret
+
+let blit_handshake_response_mac1 = make_nice_blit blit_handshake_response_mac1
+let blit_handshake_response_mac2 = make_nice_blit blit_handshake_response_mac2
 
 let blit_handshake_response_ephemeral =
   make_nice_blit blit_handshake_response_ephemeral
@@ -101,6 +112,8 @@ let blit_handshake_response_signed_empty =
 
 let get_handshake_response_ephemeral t =
   get_handshake_response_ephemeral t |> Cstruct.to_bytes
+
+let handshake_response_to_cstruct t = t
 
 type%cstruct cookie_reply =
   { msg_type: uint32_t
