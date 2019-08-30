@@ -26,6 +26,10 @@ let _msg_transport_offset_receiver = 4
 let _msg_transport_offset_counter = 8
 let _msg_transport_offset_content = 16
 
+let make_nice_blit func t bytes =
+  let cs = Cstruct.of_bytes bytes in
+  func cs 0 t
+
 type%cenum message_type =
   | HANDSHAKE_INITIATION [@id 1]
   | HANDSHAKE_RESPONSE [@id 2]
@@ -51,17 +55,14 @@ let new_handshake_initiation () =
     (message_type_to_int HANDSHAKE_INITIATION) ;
   ret
 
-let blit_handshake_initiation_ephemeral t bytes =
-  let cs = Cstruct.of_bytes bytes in
-  blit_handshake_initiation_ephemeral cs 0 t
+let blit_handshake_initiation_ephemeral =
+  make_nice_blit blit_handshake_initiation_ephemeral
 
-let blit_handshake_initiation_signed_static t bytes =
-  let cs = Cstruct.of_bytes bytes in
-  blit_handshake_initiation_signed_static cs 0 t
+let blit_handshake_initiation_signed_static =
+  make_nice_blit blit_handshake_initiation_signed_static
 
-let blit_handshake_initiation_signed_timestamp t bytes =
-  let cs = Cstruct.of_bytes bytes in
-  blit_handshake_initiation_signed_timestamp cs 0 t
+let blit_handshake_initiation_signed_timestamp =
+  make_nice_blit blit_handshake_initiation_signed_timestamp
 
 let get_handshake_initiation_ephemeral t =
   get_handshake_initiation_ephemeral t |> Cstruct.to_bytes
@@ -89,16 +90,14 @@ let new_handshake_response () =
   set_handshake_response_msg_type ret (message_type_to_int HANDSHAKE_RESPONSE) ;
   ret
 
-let blit_handshake_response_ephemeral t bytes =
-  let cs = Cstruct.of_bytes bytes in
-  blit_handshake_response_ephemeral cs 0 t
+let blit_handshake_response_ephemeral =
+  make_nice_blit blit_handshake_response_ephemeral
 
 let get_handshake_response_signed_empty t =
   get_handshake_response_signed_empty t |> Cstruct.to_bytes
 
-let blit_handshake_response_signed_empty t bytes =
-  let cs = Cstruct.of_bytes bytes in
-  blit_handshake_response_signed_empty cs 0 t
+let blit_handshake_response_signed_empty =
+  make_nice_blit blit_handshake_response_signed_empty
 
 let get_handshake_response_ephemeral t =
   get_handshake_response_ephemeral t |> Cstruct.to_bytes

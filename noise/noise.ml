@@ -6,6 +6,8 @@ open Crypto
 (* CR crichoux: this is way too time consuming. worry about clearing and
    managing memory later. *)
 
+let empty_bytes () = Bytes.create 0
+
 (* various nothing-up-my-sleeve constants *)
 let _noise_construction = "Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s"
 let _wg_identifier = "WireGuard v1 zx2c4 Jason@zx2c4.com"
@@ -26,11 +28,9 @@ let initial_chain_hash =
 
 (* optionally pass in constants for values that should be generated *)
 (* just for testing! *)
-let create_message_initiation
-    ?timestamp
-    ?local_ephemeral
-    ~(local_static_public : Public.key)
-    (handshake : Handshake.t) : Message.handshake_initiation Or_error.t =
+let create_message_initiation ?timestamp ?local_ephemeral
+    ~(local_static_public : Public.key) (handshake : Handshake.t) :
+    Message.handshake_initiation Or_error.t =
   (* CR crichoux: worry about this soon/later device.staticIdentity.RLock()
      defer device.staticIdentity.RUnlock() *)
   (* CR crichoux: worry about this soon handshake.mutex.Lock() defer
@@ -108,14 +108,11 @@ let mix_hash ~hash bytes : unit Or_error.t =
   Bytes.blit ~src:res ~src_pos:0 ~dst:hash ~dst_pos:0 ~len:32
 
 (* CR crichoux: dummy type, will fill out better later *)
-type peer = {handshake: Handshake.t}
+type peer = {handshake: Handshake.t; keypairs: Keypair.ts ref}
 
 (* peer arg for testing only! should not be passed in in prod. *)
-let consume_message_initiation
-    ?peer
-    ~(msg : Message.handshake_initiation)
-    ~(local_static : keypair)
-    : peer Or_error.t =
+let consume_message_initiation ?peer ~(msg : Message.handshake_initiation)
+    ~(local_static : keypair) : peer Or_error.t =
   let hash = Bytes.copy initial_chain_hash in
   let chain_key = Bytes.copy initial_chain_key in
   let%bind () = mix_hash ~hash (Public.to_bytes local_static.public) in
@@ -183,7 +180,7 @@ let consume_message_initiation
   Handshake.set_t_state handshake Handshake.Handshake_initiation_consumed ;
   Crypto.zero_buffer hash ;
   Crypto.zero_buffer chain_key ;
-  {handshake}
+  {handshake; keypairs= ref (Keypair.create_empty_ts ())}
 
 let int_list_to_bytes int_list =
   let char_list = List.map ~f:char_of_int int_list in
@@ -223,7 +220,7 @@ let create_message_response ?local_ephemeral peer :
     let%bind () = Handshake.mix_hash handshake (Shared.to_bytes tau) in
     let%bind empty =
       aead_encrypt ~key:kappa ~counter:(Int64.of_int 0)
-        ~message:(Bytes.create 0)
+        ~message:(empty_bytes ())
         ~auth_text:(Handshake.get_t_hash handshake) in
     Message.blit_handshake_response_signed_empty ret empty ;
     let%map () = Handshake.mix_hash handshake empty in
@@ -236,69 +233,6 @@ let create_message_response ?local_ephemeral peer :
         [%message
           "handshake is in the wrong state to call create_message_response!"
             (state : Handshake.noise_state)]
-
-let begin_symmetric_session peer : unit Or_error.t =
-  let handshake = peer.handshake in
-  let chain_key = Handshake.get_t_chain_key handshake in
-  let%bind (send, receive), is_initiator =
-    match Handshake.get_t_state handshake with
-    | Handshake_response_consumed ->
-      (Crypto.kdf2 ~key:chain_key (Bytes.create 0), true) |> Or_error.return
-    | Handshake_response_created ->
-      Crypto.kdf2 ~key:chain_key (Bytes.create 0)
-      |> fun (a, b) -> (b, a), false
-      |> Or_error.return
-    | _ -> Or_error.error_string "invalid state for keypair derivation"
-  in
-  Handshake.zero_t_chain_key handshake;
-  Handshake.zero_t_hash handshake;
-  Handshake.zero_t_local_ephemeral handshake;
-  Handshake.set_t_state handshake Handshake.Handshake_zeroed;
-  let keypair = Keypair.{
-    send_nonce = 0;
-    send; receive;
-    replay_filter = (); (* CR crichoux: need to do replay_filter? *)
-    is_initiator;
-    created = Time_ns.now ();
-    local_index = Handshake.get_t_local_index handshake;
-    remote_index = Handshake.get_t_remote_index handshake;
-  } in
-  (* CR crichoux: remap device index... what's that? *)
-  (* device.indexTable.SwapIndexForKeypair(handshake.localIndex, keypair)
-  	handshake.localIndex = 0 *)
-
-  (* CR crichoux: WHAT IS HAPPENING HERE LMAO *)
-  let {current; previous; next} = peer.keypairs in
-  let keypairs =
-    if is_initiator
-    then (
-      match next with
-      | Some next ->
-        device.delete_keypair current;
-        {current; previous=Some next; next=None}
-      | None ->
-        {current; previous=current; next}
-    )
-    else (
-      device.delete_keypair next;
-      device.delete_keypair previous;
-      {current; previous=None; next=Some keypair}
-    ) in
-    set_peer_keypairs keypairs
-;;
-
-let received_with_keypair ~peer recv_keypair : bool =
-  if peer.keypairs.next != recv_keypair
-  then false
-  else (
-    (* CR crichoux: handle keypair mutex stuff from go? *)
-    if peer.keypairs.next != recv_keypair then false
-    else (
-      let old = peer.keypairs.previous in
-      (* CR crichoux: start here on friday! *)
-    )
-  )
-;;
 
 (* in real implementation, lookup handshake by receiver id *)
 (* in real implementation get local_static from device *)
@@ -344,7 +278,88 @@ let consume_message_response ?handshake ?local_static
     aead_decrypt ~key:kappa ~counter:(Int64.of_int 0) ~ciphertext:signed_empty
       ~auth_text:(Handshake.get_t_hash handshake) in
   let%map () = Handshake.mix_hash handshake signed_empty in
-  {handshake}
+  Handshake.set_t_state handshake Handshake.Handshake_response_consumed ;
+  {handshake; keypairs= ref (Keypair.create_empty_ts ())}
+
+let begin_symmetric_session peer : unit Or_error.t =
+  let handshake = peer.handshake in
+  let chain_key = Shared.of_bytes (Handshake.get_t_chain_key handshake) in
+  let%map (send, receive), is_initiator =
+    match Handshake.get_t_state handshake with
+    | Handshake_response_consumed ->
+        (Crypto.kdf_2 ~key:chain_key (empty_bytes ()), true) |> Or_error.return
+    | Handshake_response_created ->
+        Crypto.kdf_2 ~key:chain_key (empty_bytes ())
+        |> fun (a, b) -> ((b, a), false) |> Or_error.return
+    | _ -> Or_error.error_string "invalid state for keypair derivation" in
+  Handshake.zero_t_chain_key handshake ;
+  Handshake.zero_t_hash handshake ;
+  Handshake.zero_t_local_ephemeral handshake ;
+  Handshake.set_t_state handshake Handshake.Handshake_zeroed ;
+  let open Keypair in
+  let keypair =
+    create_t ~send_nonce:Int64.zero ~send ~receive ~replay_filter:0
+      ~is_initiator:(if is_initiator then 1 else 0)
+      ~created:(Tai64n.now ())
+      ~local_index:(Handshake.get_t_local_index handshake)
+      ~remote_index:(Handshake.get_t_remote_index handshake) in
+  (* CR crichoux: remap device index... what's that? *)
+  (* device.indexTable.SwapIndexForKeypair(handshake.localIndex, keypair)
+     handshake.localIndex = 0 *)
+  let {current; previous= _; next} = !(peer.keypairs) in
+  let keypairs =
+    if is_initiator then
+      let next, previous =
+        match next with
+        | Some _ ->
+            (* device.delete_keypair current ; *)
+            (None, next)
+        | None -> (next, current) in
+      let current = Some keypair in
+      {current; next; previous}
+    else
+      { (* device.delete_keypair next ; device.delete_keypair previous ;*)
+        current
+      ; previous= None
+      ; next= Some keypair } in
+  peer.keypairs := keypairs
+
+(* CR crichoux: what is this for again *)
+(* CR crichoux: untested! *)
+(* let received_with_keypair ~(peer : peer) recv_keypair : bool = (* CR
+   crichoux: handle keypair mutex stuff from go? *) let keypairs =
+   !(peer.keypairs) in match keypairs.next with | None -> false | Some
+   next_pair -> if not (Keypair.equal_t next_pair recv_keypair) then false else
+   let _old = keypairs.previous in let previous = keypairs.current in (*
+   device.delete_keypair old ;*) let current = keypairs.next in let next = None
+   in peer.keypairs := {current; previous; next} ; true *)
+
+let test_key_pairs peer1 peer2 : unit Or_error.t =
+  let%bind send1, receive1 =
+    match !(peer1.keypairs).next with
+    | Some n -> Ok (Keypair.get_t_send n, Keypair.get_t_receive n)
+    | None -> Or_error.error_string "no next key for peer1" in
+  let%bind send2, receive2 =
+    match !(peer2.keypairs).current with
+    | Some n -> Ok (Keypair.get_t_send n, Keypair.get_t_receive n)
+    | None -> Or_error.error_string "no current key for peer2" in
+  let auth_text = empty_bytes () in
+  let m_1 = Bytes.of_string "wireguard test message 1" in
+  let ctr_1 = Int64.of_int 13289420 in
+  let%bind c_1 =
+    Crypto.aead_encrypt ~key:send1 ~counter:ctr_1 ~message:m_1 ~auth_text in
+  let%bind m_1_dec =
+    Crypto.aead_decrypt ~key:receive2 ~counter:ctr_1 ~ciphertext:c_1 ~auth_text
+  in
+  let m_2 = Bytes.of_string "wireguard test message 2" in
+  let ctr_2 = Int64.of_int 43290128 in
+  let%bind c_2 =
+    Crypto.aead_encrypt ~key:send2 ~counter:ctr_2 ~message:m_2 ~auth_text in
+  let%bind m_2_dec =
+    Crypto.aead_decrypt ~key:receive1 ~counter:ctr_2 ~ciphertext:c_2 ~auth_text
+  in
+  if Bytes.equal m_1 m_1_dec && Bytes.equal m_2 m_2_dec then Ok ()
+  else Or_error.error_string "failed correct encryption and decryption..."
 
 let%expect_test "test_handshake_against_go_constants" =
   Crypto.init () |> Or_error.ok_exn ;
@@ -434,13 +449,13 @@ let%expect_test "test_handshake_against_go_constants" =
   let peer1 : peer =
     consume_message_initiation
     (* for testing only! should not be passed in in prod. *)
-      ~peer:{handshake= handshake2} ~msg:handshake_initiation
-      ~local_static:static_keypair2
+      ~peer:{handshake= handshake2; keypairs= ref (Keypair.create_empty_ts ())}
+      ~msg:handshake_initiation ~local_static:static_keypair2
     |> Or_error.ok_exn in
   let handshake_response : Message.handshake_response =
     create_message_response ~local_ephemeral:ephemeral_keypair2 peer1
     |> Or_error.ok_exn in
-  Message.hexdump_handshake_response handshake_response;
+  Message.hexdump_handshake_response handshake_response ;
   let peer2 : peer =
     consume_message_response ~handshake:handshake1
       ~local_static:static_keypair1 handshake_response
@@ -461,7 +476,7 @@ let%expect_test "test_handshake_against_go_constants" =
   pretty_print_bytes chain_key_2 ;
   let () = begin_symmetric_session peer1 |> Or_error.ok_exn in
   let () = begin_symmetric_session peer2 |> Or_error.ok_exn in
-  test_key_pairs peer1 peer2
+  test_key_pairs peer1 peer2 |> Or_error.ok_exn ;
   [%expect
     {|
   handshake_initiation = {
@@ -538,7 +553,8 @@ let%expect_test "test_handshake" =
   let static_keypair2 = Crypto.generate () |> Or_error.ok_exn in
   let handshake1 : Handshake.t = Handshake.new_handshake () in
   let handshake2 : Handshake.t = Handshake.new_handshake () in
-  Handshake.blit_t_remote_static handshake1 (Public.to_bytes static_keypair2.public) ;
+  Handshake.blit_t_remote_static handshake1
+    (Public.to_bytes static_keypair2.public) ;
   Handshake.blit_t_remote_static handshake2
     (Public.to_bytes static_keypair1.public) ;
   let shared_static_static1 : bytes =
@@ -551,18 +567,20 @@ let%expect_test "test_handshake" =
   (* set precomputed_static_static *)
   Handshake.blit_t_precomputed_static_static handshake2 shared_static_static2 ;
   let handshake_initiation : Message.handshake_initiation =
-    create_message_initiation ~local_static_public:static_keypair1.public handshake1
+    create_message_initiation ~local_static_public:static_keypair1.public
+      handshake1
     |> Or_error.ok_exn in
   let peer1 : peer =
     consume_message_initiation
     (* for testing only! should not be passed in in prod. *)
-      ~peer:{handshake= handshake2} ~msg:handshake_initiation
-      ~local_static:static_keypair2
+      ~peer:{handshake= handshake2; keypairs= ref (Keypair.create_empty_ts ())}
+      ~msg:handshake_initiation ~local_static:static_keypair2
     |> Or_error.ok_exn in
   let handshake_response : Message.handshake_response =
     create_message_response peer1 |> Or_error.ok_exn in
-  let _peer2 : peer =
-    consume_message_response ~local_static:static_keypair1 ~handshake:handshake1 handshake_response
+  let peer2 : peer =
+    consume_message_response ~local_static:static_keypair1
+      ~handshake:handshake1 handshake_response
     |> Or_error.ok_exn in
   let chain_hash_1, chain_key_1 =
     (Handshake.get_t_hash handshake1, Handshake.get_t_chain_key handshake1)
@@ -570,13 +588,11 @@ let%expect_test "test_handshake" =
   let chain_hash_2, chain_key_2 =
     (Handshake.get_t_hash handshake2, Handshake.get_t_chain_key handshake2)
   in
-  print_s [%message (Bytes.equal chain_hash_1 chain_hash_2 : bool)] ;
-  print_s [%message (Bytes.equal chain_key_1 chain_key_2 : bool)] ;
+  if not (Bytes.equal chain_hash_1 chain_hash_2) then
+    failwith "chain hashes don't match" ;
+  if not (Bytes.equal chain_key_1 chain_key_2) then
+    failwith "chain keys don't match" ;
   let () = begin_symmetric_session peer1 |> Or_error.ok_exn in
   let () = begin_symmetric_session peer2 |> Or_error.ok_exn in
-  test_key_pairs peer1 peer2
-  [%expect
-    {|
-      ("Bytes.equal chain_hash_1 chain_hash_2" true)
-      ("Bytes.equal chain_key_1 chain_key_2" true)
-          |}]
+  test_key_pairs peer1 peer2 |> Or_error.ok_exn ;
+  [%expect {|  |}]

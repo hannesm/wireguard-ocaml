@@ -23,3 +23,8 @@ val consume_message_response :
   -> ?local_static:Crypto.keypair
   -> Message.handshake_response
   -> peer Core.Or_error.t
+
+val begin_symmetric_session : peer -> unit Core.Or_error.t
+
+(* CR crichoux: what is this for again *)
+(* val received_with_keypair : peer:peer -> Keypair.t -> bool *)
