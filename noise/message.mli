@@ -48,3 +48,9 @@ val blit_handshake_response_signed_empty : handshake_response -> bytes -> unit
 val blit_handshake_response_mac1 : handshake_response -> bytes -> unit
 val blit_handshake_response_mac2 : handshake_response -> bytes -> unit
 val handshake_response_to_cstruct : handshake_response -> Cstruct.t
+val new_cookie_reply : unit -> cookie_reply
+val set_cookie_reply_receiver : cookie_reply -> int32 -> unit
+val blit_cookie_reply_nonce : cookie_reply -> bytes -> unit
+val get_cookie_reply_nonce : cookie_reply -> bytes
+val blit_cookie_reply_cookie : cookie_reply -> bytes -> unit
+val get_cookie_reply_cookie : cookie_reply -> bytes

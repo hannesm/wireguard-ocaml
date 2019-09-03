@@ -124,6 +124,16 @@ type%cstruct cookie_reply =
 
 type cookie_reply = Cstruct.t
 
+let new_cookie_reply () =
+  let ret = Cstruct.create sizeof_cookie_reply in
+  set_cookie_reply_msg_type ret (message_type_to_int COOKIE_REPLY) ;
+  ret
+
+let blit_cookie_reply_nonce = make_nice_blit blit_cookie_reply_nonce
+let blit_cookie_reply_cookie = make_nice_blit blit_cookie_reply_cookie
+let get_cookie_reply_nonce t = get_cookie_reply_nonce t |> Cstruct.to_bytes
+let get_cookie_reply_cookie t = get_cookie_reply_cookie t |> Cstruct.to_bytes
+
 type%cstruct transport_header =
   {msg_type: uint32_t; receiver: uint32_t; counter: uint64_t}
 [@@little_endian]
