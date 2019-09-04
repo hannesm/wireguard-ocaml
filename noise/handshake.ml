@@ -1,11 +1,8 @@
-(* CR crichoux: sort these lol *)
+(* CR crichoux: sort these and clean up *)
+(* CR crichoux: add finalizers *)
 
 open Core
 open Crypto
-
-let make_nice_blit func t bytes =
-  let cs = Cstruct.of_bytes bytes in
-  func cs 0 t
 
 type t = Cstruct.t
 
@@ -46,13 +43,13 @@ let get_t_precomputed_static_static t =
   get_t_precomputed_static_static t |> Cstruct.to_bytes
 
 let blit_t_precomputed_static_static =
-  make_nice_blit blit_t_precomputed_static_static
+  Misc.make_nice_blit blit_t_precomputed_static_static
 
 let get_t_preshared_key t = get_t_preshared_key t |> Cstruct.to_bytes
 let get_t_remote_static t = get_t_remote_static t |> Cstruct.to_bytes
 let get_t_remote_ephemeral t = get_t_remote_ephemeral t |> Cstruct.to_bytes
-let blit_t_remote_static = make_nice_blit blit_t_remote_static
-let blit_t_remote_ephemeral = make_nice_blit blit_t_remote_ephemeral
+let blit_t_remote_static = Misc.make_nice_blit blit_t_remote_static
+let blit_t_remote_ephemeral = Misc.make_nice_blit blit_t_remote_ephemeral
 
 let get_t_local_ephemeral_public t =
   get_t_local_ephemeral_public t |> Cstruct.to_bytes
@@ -61,24 +58,24 @@ let get_t_local_ephemeral_private t =
   get_t_local_ephemeral_private t |> Cstruct.to_bytes
 
 let get_t_hash t = get_t_hash t |> Cstruct.to_bytes
-let blit_t_hash = make_nice_blit blit_t_hash
+let blit_t_hash = Misc.make_nice_blit blit_t_hash
 let get_t_chain_key t = get_t_chain_key t |> Cstruct.to_bytes
-let blit_t_chain_key = make_nice_blit blit_t_chain_key
+let blit_t_chain_key = Misc.make_nice_blit blit_t_chain_key
 
 let blit_t_ephemeral_keypair t (keypair : Crypto.keypair) =
   Crypto.Secret.to_bytes keypair.secret
-  |> (make_nice_blit blit_t_local_ephemeral_private) t ;
+  |> (Misc.make_nice_blit blit_t_local_ephemeral_private) t ;
   Crypto.Public.to_bytes keypair.public
-  |> (make_nice_blit blit_t_local_ephemeral_public) t
+  |> (Misc.make_nice_blit blit_t_local_ephemeral_public) t
 
 let get_t_last_timestamp t = get_t_last_timestamp t |> Cstruct.to_bytes
-let blit_t_last_timestamp = make_nice_blit blit_t_last_timestamp
+let blit_t_last_timestamp = Misc.make_nice_blit blit_t_last_timestamp
 
 let get_t_last_initiation_consumption t =
   get_t_last_initiation_consumption t |> Cstruct.to_bytes
 
 let blit_t_last_initiation_consumption =
-  make_nice_blit blit_t_last_initiation_consumption
+  Misc.make_nice_blit blit_t_last_initiation_consumption
 
 let zero_t_chain_key t = blit_t_chain_key t (Bytes.make 32 '\x00')
 let zero_t_hash t = blit_t_hash t (Bytes.make 32 '\x00')

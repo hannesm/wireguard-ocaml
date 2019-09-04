@@ -40,41 +40,38 @@ let get_t_encryption_key t =
 
 let init pk : t Or_error.t =
   let ckr = Cstruct.create sizeof_t in
-  let%map mac1_key, mac2_encryption_key, time = Misc.init_constants pk in
+  let%map mac1_key, mac2_encryption_key, time = Constants.init_constants pk in
   blit_t_mac1_key ckr mac1_key ;
   blit_t_encryption_key ckr mac2_encryption_key ;
   blit_t_mac2_cookie_set ckr time ;
   ckr
 
 (* CR crichoux: write tESTS *)
-let consume_reply ~t ~(msg : Noise.Message.cookie_reply) : unit Or_error.t =
+let consume_reply ~t ~(msg : Messages.Cookie_reply.t) : unit Or_error.t =
   if not (get_t_mac2_has_last_mac1 t) then
     Or_error.error_string "no last mac1 for cookie reply"
   else
     let%map cookie =
-      Crypto.xaead_encrypt ~key:(get_t_encryption_key t)
-        ~nonce:(Noise.Message.get_cookie_reply_nonce msg)
-        ~message:(Noise.Message.get_cookie_reply_cookie msg)
+      Crypto.xaead_encrypt ~key:(get_t_encryption_key t) ~nonce:msg.nonce
+        ~message:msg.cookie
         ~auth_text:(get_t_mac2_last_mac1 t |> Cstruct.to_bytes) in
     blit_t_mac2_cookie_set t (Tai64n.now () |> Tai64n.to_bytes) ;
     blit_t_mac2_cookie t cookie
 
 (* CR crichoux: write tESTS *)
-let add_macs ~t ~(msg : Noise.Message.handshake_response) : unit Or_error.t =
-  let msg_cstruct = Noise.Message.handshake_response_to_cstruct msg in
-  let (msg_alpha, _), (msg_beta, _) = Misc.get_macs msg_cstruct in
+let add_macs ~t ~(msg : Messages.mac_message) : unit Or_error.t =
+  let msg_alpha, _, msg_beta, _ = Messages.get_macs msg in
   let%bind mac1 =
     Crypto.mac ~key:(get_t_mac1_key t) ~input:(Cstruct.to_bytes msg_alpha)
   in
-  Misc.set_mac1 ~msg:msg_cstruct ~mac1 ;
   blit_t_mac2_last_mac1 t mac1 ;
   set_t_mac2_has_last_mac1 t true ;
-  if
-    Time_ns.Span.(
-      Tai64n.since (get_t_mac2_cookie_set t) > Misc.cookie_refresh_time)
-  then Or_error.return ()
-  else
-    let%map mac2 =
+  let%map mac2 =
+    if
+      Time_ns.Span.(
+        Tai64n.since (get_t_mac2_cookie_set t) > Constants.cookie_refresh_time)
+    then Bytes.make 32 '\x00' |> Or_error.return
+    else
       Crypto.mac ~key:(get_t_mac2_cookie t) ~input:(Cstruct.to_bytes msg_beta)
-    in
-    Misc.set_mac2 ~msg:msg_cstruct ~mac2
+  in
+  Messages.set_macs ~msg ~mac1 ~mac2

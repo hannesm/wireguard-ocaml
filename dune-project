@@ -15,3 +15,5 @@
   (depends core cstruct digestif ctypes hex ocplib-endian ppx_cstruct ppx_inline_test)
   (synopsis "Wireguard, but this time it's in ocaml")
 )
+
+(using fmt 1.2)

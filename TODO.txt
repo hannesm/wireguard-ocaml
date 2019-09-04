@@ -4,7 +4,7 @@ wireguard-go/device/allowedips.go
 device/bind_test.go
 device/conn_default.go
 device/conn.go
-device/cookie{,test}.go
+device/cookie_test.go
 device/device{,test}.go
 device/endpoint_test.go
 device/indextable.go
@@ -33,3 +33,4 @@ make sure all bytes operations have checks on size
 can you make stronger types for safety with all these bytes things?
 get all the CRs
 multithreading....?
+add FINALISE FROM GC MODULE TO CRYPTO PRIMITIVES!!!

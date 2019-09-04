@@ -1,6 +1,6 @@
 (library
- (name tai64n)
- (libraries core stdint)
+ (name timers)
+ (libraries core async)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test ppx_deriving ppx_jane)))
