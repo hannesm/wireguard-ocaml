@@ -4,7 +4,7 @@ open Or_error.Let_syntax
 open Crypto
 
 (* CR crichoux: worry about clearing and managing memory later. *)
-
+(* CR crichoux: error cases w/ handshakes locks? does it deadlock? *)
 let empty_bytes () = Bytes.create 0
 
 (* various nothing-up-my-sleeve constants *)
@@ -28,10 +28,9 @@ let initial_chain_hash =
 let create_message_initiation ?timestamp ?local_ephemeral
     ~(local_static_public : Public.key) (handshake : Handshake.t) :
     Messages.Handshake_initiation.t_cstruct Or_error.t =
-  (* CR crichoux: worry about this soon/later device.staticIdentity.RLock()
-     defer device.staticIdentity.RUnlock() *)
-  (* CR crichoux: worry about this soon handshake.mutex.Lock() defer
-     handshake.mutex.Unlock() *)
+  (* CR crichoux: worry about this soon device.staticIdentity.RLock() defer
+     device.staticIdentity.RUnlock() *)
+  Misc.Rwlock.write_lock handshake.lock ;
   let%bind () =
     Result.ok_if_true
       (not
@@ -83,6 +82,7 @@ let create_message_initiation ?timestamp ?local_ephemeral
       ~auth_text:(Handshake.get_t_hash handshake) in
   let%map () = Handshake.mix_hash handshake signed_timestamp in
   Handshake.set_t_state handshake Handshake.Handshake_initiation_created ;
+  Misc.Rwlock.write_unlock handshake.lock ;
   Messages.Handshake_initiation.create_t_cstruct ~ephemeral ~sender:local_index
     ~signed_timestamp ~signed_static
 
@@ -138,21 +138,20 @@ let consume_message_initiation ?peer
       (not (Crypto.is_zero pss))
       ~error:(Error.of_string "handshake precomputed static is zero") in
   (* verify identity *)
+  Misc.Rwlock.read_lock handshake.lock ;
   let kappa = mix_key2 ~chain_key pss in
   let%bind timestamp =
     aead_decrypt ~key:kappa ~counter:(Int64.of_int 0)
       ~ciphertext:msg.signed_timestamp ~auth_text:hash in
   let%bind () = mix_hash ~hash msg.signed_timestamp in
-  (* CR crichoux: take care of this handshake.mutex.RLock() *)
-
   (* protect against replays, floods *)
   let%map () =
     let last_timestamp = Handshake.get_t_last_timestamp handshake in
     let ok =
-      Tai64n.after (Tai64n.of_bytes timestamp) (Tai64n.of_bytes last_timestamp)
-    in
-    (* CR crichoux: figure this one out *)
-    let ok =
+      let ok =
+        Tai64n.after
+          (Tai64n.of_bytes timestamp)
+          (Tai64n.of_bytes last_timestamp) in
       let last_init_consump =
         Handshake.get_t_last_initiation_consumption handshake in
       ok
@@ -161,6 +160,8 @@ let consume_message_initiation ?peer
            > handshake_initiation_rate) in
     Result.ok_if_true ok
       ~error:(Error.of_string "insufficient time since last initiation") in
+  Misc.Rwlock.read_unlock handshake.lock ;
+  Misc.Rwlock.write_lock handshake.lock ;
   Handshake.blit_t_hash handshake hash ;
   Handshake.blit_t_chain_key handshake chain_key ;
   Handshake.set_t_remote_index handshake msg.sender ;
@@ -169,6 +170,7 @@ let consume_message_initiation ?peer
   Handshake.blit_t_last_initiation_consumption handshake
     (Tai64n.now () |> Tai64n.to_bytes) ;
   Handshake.set_t_state handshake Handshake.Handshake_initiation_consumed ;
+  Misc.Rwlock.write_unlock handshake.lock ;
   Crypto.zero_buffer hash ;
   Crypto.zero_buffer chain_key ;
   {handshake; keypairs= ref (Keypair.create_empty_ts ())}
@@ -183,6 +185,7 @@ let create_message_response ?local_ephemeral peer :
     Messages.Handshake_response.t_cstruct Or_error.t =
   let handshake = peer.handshake in
   let create_message_response_ () =
+    Misc.Rwlock.write_lock handshake.lock ;
     let sender = Handshake.get_t_local_index handshake in
     let receiver = Handshake.get_t_remote_index handshake in
     let%bind local_ephemeral =
@@ -211,6 +214,7 @@ let create_message_response ?local_ephemeral peer :
         ~auth_text:(Handshake.get_t_hash handshake) in
     let%map () = Handshake.mix_hash handshake signed_empty in
     Handshake.set_t_state handshake Handshake.Handshake_response_created ;
+    Misc.Rwlock.write_unlock handshake.lock ;
     Messages.Handshake_response.create_t_cstruct ~sender ~receiver ~ephemeral
       ~signed_empty in
   match Handshake.get_t_state handshake with
@@ -230,6 +234,7 @@ let consume_message_response ?handshake ?local_static
     match handshake with
     | Some handshake -> Ok handshake
     | None -> Or_error.error_string "unimplemented handshake lookup" in
+  Misc.Rwlock.read_lock handshake.lock ;
   let%bind () =
     match Handshake.get_t_state handshake with
     | Handshake.Handshake_initiation_created -> Ok ()
@@ -267,10 +272,12 @@ let consume_message_response ?handshake ?local_static
       ~auth_text:(Handshake.get_t_hash handshake) in
   let%map () = Handshake.mix_hash handshake msg.signed_empty in
   Handshake.set_t_state handshake Handshake.Handshake_response_consumed ;
+  Misc.Rwlock.read_unlock handshake.lock ;
   {handshake; keypairs= ref (Keypair.create_empty_ts ())}
 
 let begin_symmetric_session peer : unit Or_error.t =
   let handshake = peer.handshake in
+  Misc.Rwlock.write_lock handshake.lock ;
   let chain_key = Shared.of_bytes (Handshake.get_t_chain_key handshake) in
   let%map (send, receive), is_initiator =
     match Handshake.get_t_state handshake with
@@ -284,6 +291,7 @@ let begin_symmetric_session peer : unit Or_error.t =
   Handshake.zero_t_hash handshake ;
   Handshake.zero_t_local_ephemeral handshake ;
   Handshake.set_t_state handshake Handshake.Handshake_zeroed ;
+  Misc.Rwlock.write_unlock handshake.lock ;
   let open Keypair in
   let keypair =
     create_t ~send_nonce:Int64.zero ~send ~receive ~replay_filter:0

@@ -43,11 +43,6 @@ let create_t ~send_nonce ~send ~receive ~replay_filter ~is_initiator ~created
 (* CR crichoux: is this right? *)
 let equal_t t1 t2 = Cstruct.equal t1 t2
 
-type ts =
-  { (* CR crichoux: do i need a mutex here? check the go impl in
-       device/keypair.go, there's more interesting stuff! *)
-    current: t option
-  ; previous: t option
-  ; next: t option }
+type ts = {current: t option; previous: t option; next: t option}
 
 let create_empty_ts () = {current= None; previous= None; next= None}

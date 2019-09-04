@@ -4,35 +4,29 @@
 open Core
 open Crypto
 
-type t = Cstruct.t
-
-type%cenum noise_state =
+type noise_state =
   | Handshake_zeroed
   | Handshake_initiation_created
   | Handshake_initiation_consumed
   | Handshake_response_created
   | Handshake_response_consumed
-[@@uint8_t]
 
-let sexp_of_noise_state ns = noise_state_to_int ns |> sexp_of_int
-
-type%cstruct t =
-  { state: uint8_t
-  ; (* CR crichoux: add this back? -> mutex : sync.RWMutex *)
-    hash: uint8_t [@len 32]
-  ; chain_key: uint8_t [@len 32]
-  ; preshared_key: uint8_t [@len 32]
-  ; local_ephemeral_private: uint8_t [@len 32]
-  ; local_ephemeral_public: uint8_t [@len 32]
+type t =
+  { state: noise_state
+  ; lock: Misc.Rwlock.t
+  ; hash: bytes
+  ; chain_key: bytes
+  ; preshared_key: Crypto.Shared.key
+  ; local_ephemeral: Crypto.keypair
   ; (* localIndex is used to clear hash-table *)
     local_index: uint32_t
   ; remote_index: uint32_t
-  ; remote_static: uint8_t [@len 32]
-  ; remote_ephemeral: uint8_t [@len 32]
-  ; precomputed_static_static: uint8_t [@len 32]
-  ; last_timestamp: uint8_t [@len 12]
-  ; last_initiation_consumption: uint8_t [@len 12]
-  ; last_sent_handshake: uint8_t [@len 12] }
+  ; remote_static: Crypto.Public.key
+  ; remote_ephemeral: Crypto.Public.key
+  ; precomputed_static_static: bytes
+  ; last_timestamp: Tai64n.t ref
+  ; last_initiation_consumption: Tai64n.t ref
+  ; last_sent_handshake: Tai64n.t ref }
 [@@little_endian]
 
 let new_handshake () =

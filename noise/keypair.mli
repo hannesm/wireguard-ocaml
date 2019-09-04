@@ -16,11 +16,6 @@ val create_t :
 
 val equal_t : t -> t -> bool
 
-type ts =
-  { (* CR crichoux: do i need a mutex here? check the go impl in
-       device/keypair.go, there's more interesting stuff! *)
-    current: t option
-  ; previous: t option
-  ; next: t option }
+type ts = {current: t option; previous: t option; next: t option}
 
 val create_empty_ts : unit -> ts

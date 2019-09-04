@@ -5,7 +5,6 @@ val init : Crypto.Public.key -> t Core.Or_error.t
 val check_macs :
   t:t -> msg:Messages.mac_message -> src:bytes -> unit Core.Or_error.t
 
-(* CR crichoux: maybe make the message type-specific or something? *)
 val create_reply :
      t:t
   -> msg:Messages.mac_message
