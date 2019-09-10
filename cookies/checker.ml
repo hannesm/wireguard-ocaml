@@ -11,10 +11,12 @@ type%cstruct t =
 
 type t = Cstruct.t
 
-let blit_t_mac1_key = Misc.make_nice_blit blit_t_mac1_key
-let blit_t_mac2_secret = Misc.make_nice_blit blit_t_mac2_secret
-let blit_t_mac2_secret_set = Misc.make_nice_blit blit_t_mac2_secret_set
-let blit_t_mac2_encryption_key = Misc.make_nice_blit blit_t_mac2_encryption_key
+let blit_t_mac1_key = Misc_utils.make_nice_blit blit_t_mac1_key
+let blit_t_mac2_secret = Misc_utils.make_nice_blit blit_t_mac2_secret
+let blit_t_mac2_secret_set = Misc_utils.make_nice_blit blit_t_mac2_secret_set
+
+let blit_t_mac2_encryption_key =
+  Misc_utils.make_nice_blit blit_t_mac2_encryption_key
 
 let get_t_mac1_key t =
   get_t_mac1_key t |> Cstruct.to_bytes |> Crypto.Shared.of_bytes

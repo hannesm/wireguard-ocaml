@@ -13,11 +13,11 @@ type%cstruct t =
 
 type t = Cstruct.t
 
-let blit_t_mac1_key = Misc.make_nice_blit blit_t_mac1_key
-let blit_t_encryption_key = Misc.make_nice_blit blit_t_encryption_key
-let blit_t_mac2_cookie_set = Misc.make_nice_blit blit_t_mac2_cookie_set
-let blit_t_mac2_cookie = Misc.make_nice_blit blit_t_mac2_cookie
-let blit_t_mac2_last_mac1 = Misc.make_nice_blit blit_t_mac2_last_mac1
+let blit_t_mac1_key = Misc_utils.make_nice_blit blit_t_mac1_key
+let blit_t_encryption_key = Misc_utils.make_nice_blit blit_t_encryption_key
+let blit_t_mac2_cookie_set = Misc_utils.make_nice_blit blit_t_mac2_cookie_set
+let blit_t_mac2_cookie = Misc_utils.make_nice_blit blit_t_mac2_cookie
+let blit_t_mac2_last_mac1 = Misc_utils.make_nice_blit blit_t_mac2_last_mac1
 
 let get_t_mac2_cookie_set t =
   get_t_mac2_cookie_set t |> Cstruct.to_bytes |> Tai64n.of_bytes

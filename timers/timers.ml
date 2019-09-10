@@ -3,6 +3,10 @@ open Async
 
 (* CR crichoux: remember to run the scheduler *)
 
+type t = {
+  
+}
+
 let is_pending timer =
   match Clock_ns.Event.status timer with Scheduled_at _ -> true | _ -> false
 

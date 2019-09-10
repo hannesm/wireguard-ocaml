@@ -1,6 +1,8 @@
 open Core
 open Stdint
 
+(* CR crichoux: think about monotonicity of system clock *)
+
 type t = {seconds: uint64; nanoseconds: uint32}
 
 let base = Uint64.of_string "0x400000000000000a"
@@ -15,6 +17,8 @@ let time_to_t time =
     Uint64.(base + (ns_since_epoch / billion), rem ns_since_epoch billion)
   in
   {seconds; nanoseconds= Uint64.to_uint32 nanoseconds}
+
+let epoch = time_to_t Time_ns.epoch
 
 let to_bytes {seconds; nanoseconds} =
   let buf = Bytes.create 12 in

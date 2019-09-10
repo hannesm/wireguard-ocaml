@@ -45,6 +45,8 @@ module type Key_utils = sig
   val copy : src:key -> dst:key -> unit Or_error.t
   val equals : key -> key -> bool
   val is_zero : key -> bool
+  val clone : key -> key
+  val create_uninit : unit -> key
 end
 
 module Make_key_utils (S : sig end) : Key_utils = struct
@@ -71,6 +73,8 @@ module Make_key_utils (S : sig end) : Key_utils = struct
   let copy ~src ~dst = copy_buffer ~src ~dst
   let equals key1 key2 = equals key1 key2
   let is_zero bytes : bool = is_zero bytes
+  let clone key = Bytes.copy key
+  let create_uninit () = Bytes.create 32
 end
 
 module Shared = Make_key_utils ()

@@ -1,5 +1,5 @@
 (library
- (name misc)
+ (name misc_utils)
  (libraries core cstruct)
  (inline_tests)
  (preprocess

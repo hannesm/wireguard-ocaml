@@ -21,11 +21,11 @@ type t =
   ; msg_alpha: Cstruct.t
   ; msg_beta: Cstruct.t }
 
-let blit_t_mac1 = Misc.make_nice_blit blit_t_mac1
-let blit_t_mac2 = Misc.make_nice_blit blit_t_mac2
-let blit_t_ephemeral = Misc.make_nice_blit blit_t_ephemeral
+let blit_t_mac1 = Misc_utils.make_nice_blit blit_t_mac1
+let blit_t_mac2 = Misc_utils.make_nice_blit blit_t_mac2
+let blit_t_ephemeral = Misc_utils.make_nice_blit blit_t_ephemeral
 let get_t_signed_empty t = get_t_signed_empty t |> Cstruct.to_bytes
-let blit_t_signed_empty = Misc.make_nice_blit blit_t_signed_empty
+let blit_t_signed_empty = Misc_utils.make_nice_blit blit_t_signed_empty
 let get_t_ephemeral t = get_t_ephemeral t |> Cstruct.to_bytes
 let get_t_mac1 t = get_t_mac1 t |> Cstruct.to_bytes
 let get_t_mac2 t = get_t_mac2 t |> Cstruct.to_bytes

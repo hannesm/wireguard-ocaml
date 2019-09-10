@@ -13,8 +13,8 @@ type t =
   ; nonce: bytes
   ; cookie: bytes }
 
-let blit_t_nonce = Misc.make_nice_blit blit_t_nonce
-let blit_t_cookie = Misc.make_nice_blit blit_t_cookie
+let blit_t_nonce = Misc_utils.make_nice_blit blit_t_nonce
+let blit_t_cookie = Misc_utils.make_nice_blit blit_t_cookie
 let get_t_nonce t = get_t_nonce t |> Cstruct.to_bytes
 let get_t_cookie t = get_t_cookie t |> Cstruct.to_bytes
 let hexdump_t_cstruct = hexdump_t

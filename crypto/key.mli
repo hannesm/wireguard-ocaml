@@ -19,6 +19,8 @@ module type Key_utils = sig
   val copy : src:key -> dst:key -> unit Or_error.t
   val equals : key -> key -> bool
   val is_zero : key -> bool
+  val clone : key -> key
+  val create_uninit : unit -> key
 end
 
 module Shared : sig
