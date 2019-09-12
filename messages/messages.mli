@@ -19,9 +19,12 @@ type mac_message =
   | Handshake_response of Handshake_response.t
   | Handshake_initiation_cstruct of Handshake_initiation.t_cstruct
   | Handshake_response_cstruct of Handshake_response.t_cstruct
+  | Dummy_for_cookie_tests of Cstruct.t * bytes * bytes
 
 val get_macs : mac_message -> Cstruct.t * bytes * Cstruct.t * bytes
 val set_macs : msg:mac_message -> mac1:bytes -> mac2:bytes -> unit
+val create_dummy : bytes -> mac_message
+val xor_dummy : int -> mac_message -> unit
 
 type t =
   | Handshake_initiation of Handshake_initiation.t

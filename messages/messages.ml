@@ -1,3 +1,4 @@
+open Core
 module Handshake_initiation = struct include Handshake_initiation end
 module Handshake_response = struct include Handshake_response end
 module Cookie_reply = struct include Cookie_reply end
@@ -8,6 +9,7 @@ type mac_message =
   | Handshake_response of Handshake_response.t
   | Handshake_initiation_cstruct of Handshake_initiation.t_cstruct
   | Handshake_response_cstruct of Handshake_response.t_cstruct
+  | Dummy_for_cookie_tests of Cstruct.t * bytes * bytes
 
 let get_macs (msg : mac_message) =
   let get_macs_init (m : Handshake_initiation.t) =
@@ -21,6 +23,14 @@ let get_macs (msg : mac_message) =
       Handshake_initiation.cstruct_to_t m_cstruct |> get_macs_init
   | Handshake_response_cstruct m_cstruct ->
       Handshake_response.cstruct_to_t m_cstruct |> get_macs_resp
+  | Dummy_for_cookie_tests (msg_body, mac1, mac2) ->
+      let msg_beta =
+        let body_length = Cstruct.len msg_body in
+        let ret = Cstruct.create (body_length + 16) in
+        Cstruct.blit msg_body 0 ret 0 body_length ;
+        Cstruct.blit (Cstruct.of_bytes mac1) 0 ret body_length 16 ;
+        ret in
+      (msg_body, mac1, msg_beta, mac2)
 
 let set_macs ~(msg : mac_message) ~mac1 ~mac2 =
   match msg with
@@ -34,6 +44,20 @@ let set_macs ~(msg : mac_message) ~mac1 ~mac2 =
       Handshake_initiation.set_macs ~msg:m_cstruct ~mac1 ~mac2
   | Handshake_response_cstruct m_cstruct ->
       Handshake_response.set_macs ~msg:m_cstruct ~mac1 ~mac2
+  | Dummy_for_cookie_tests (_, old_mac1, old_mac2) ->
+      Bytes.blit ~src:mac1 ~src_pos:0 ~dst:old_mac1 ~dst_pos:0 ~len:16 ;
+      Bytes.blit ~src:mac2 ~src_pos:0 ~dst:old_mac2 ~dst_pos:0 ~len:16
+
+let create_dummy bytes =
+  Dummy_for_cookie_tests
+    (Cstruct.of_bytes bytes, Bytes.create 16, Bytes.create 16)
+
+let xor_dummy byte = function
+  | Dummy_for_cookie_tests (cstruct, _, _) ->
+      for i = 0 to Cstruct.len cstruct - 1 do
+        Cstruct.set_uint8 cstruct i (Cstruct.get_uint8 cstruct i lxor byte)
+      done
+  | _ -> ()
 
 type t =
   | Handshake_initiation of Handshake_initiation.t

@@ -21,11 +21,11 @@ type signals =
 type queue = unit
 
 type t =
-  { is_running: bool ref
+  { (*CR crichoux: make atomic? *)
+    is_running: bool ref
+  ; sequencer: unit Async.Throttle.Sequencer.t
   ; keypairs: Noise.Keypair.keypairs
   ; handshake: Noise.Handshake.t
-  ; (* CR crichoux: implement devices *)
-    device: unit
   ; endpoint: unit option
   ; persistent_keepalive_interval: uint16_t
   ; stats: stats

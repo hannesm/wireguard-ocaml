@@ -1,12 +1,11 @@
 open Core
 open Stdint
 open Crypto
-open Misc_utils
 open Async
 open Or_error.Let_syntax
 
 (* CR crichoux: for testing, remove! *)
-let handshake_1_index = Int32.of_int 1
+let handshake_1_index = Int32.of_int 3
 let _handshake_2_index = Int32.of_int 2
 
 (* CR crichoux: worry about clearing and managing memory later. *)
@@ -146,6 +145,7 @@ let consume_message_initiation ?peer
               (not (Crypto.Shared.is_zero pss))
               ~error:(Error.of_string "handshake precomputed static is zero")
           in
+          let%bind () = Handshake.init_handshake_chaining_vals handshake in
           (* verify identity *)
           let%bind kappa = mix_key2 ~chain_key (Shared.to_bytes pss) in
           let%bind timestamp =
@@ -376,133 +376,138 @@ let%expect_test "test_handshake_against_go_constants" =
   Crypto.init () |> Or_error.ok_exn ;
   (* all constants from output of wireguard-go tests *)
   (* local and remote static keys *)
-  (let dev1_static_private =
-     int_list_to_bytes
-       [ 224; 114; 26; 212; 195; 244; 59; 190; 172; 168; 61; 43; 199; 150; 127
-       ; 38; 231; 253; 83; 239; 77; 53; 17; 129; 247; 46; 198; 121; 147; 242
-       ; 95; 99 ]
-     |> Crypto.Secret.of_bytes in
-   let dev1_static_public =
-     int_list_to_bytes
-       [ 164; 241; 106; 150; 20; 255; 195; 182; 223; 236; 37; 135; 126; 101; 187
-       ; 255; 211; 191; 16; 19; 15; 134; 234; 31; 252; 52; 138; 62; 88; 14; 120
-       ; 36 ]
-     |> Crypto.Public.of_bytes in
-   let dev2_static_private =
-     int_list_to_bytes
-       [ 56; 63; 223; 191; 65; 76; 161; 98; 187; 219; 126; 199; 86; 23; 147; 194
-       ; 204; 57; 156; 82; 225; 132; 10; 140; 254; 102; 97; 25; 91; 249; 140
-       ; 127 ]
-     |> Crypto.Secret.of_bytes in
-   let dev2_static_public =
-     int_list_to_bytes
-       [ 178; 147; 147; 105; 114; 57; 113; 157; 55; 78; 29; 91; 95; 80; 71; 23
-       ; 132; 248; 26; 37; 211; 31; 233; 77; 185; 132; 60; 141; 237; 179; 140
-       ; 53 ]
-     |> Crypto.Public.of_bytes in
-   (* local and remote ephemeral keys *)
-   let dev1_ephemeral_private =
-     int_list_to_bytes
-       [ 224; 128; 105; 132; 216; 1; 207; 234; 117; 21; 175; 45; 37; 11; 107
-       ; 251; 152; 90; 145; 131; 204; 95; 117; 155; 91; 5; 94; 149; 249; 4; 247
-       ; 70 ]
-     |> Crypto.Secret.of_bytes in
-   let dev1_ephemeral_public =
-     int_list_to_bytes
-       [ 85; 135; 231; 208; 15; 35; 21; 225; 55; 108; 126; 159; 20; 213; 11; 46
-       ; 95; 135; 236; 74; 31; 99; 68; 254; 82; 159; 148; 217; 233; 79; 83; 118
-       ]
-     |> Crypto.Public.of_bytes in
-   let dev2_ephemeral_private =
-     int_list_to_bytes
-       [ 80; 9; 108; 30; 226; 174; 138; 236; 151; 228; 202; 108; 93; 98; 246
-       ; 194; 113; 195; 125; 36; 126; 70; 193; 172; 144; 191; 209; 249; 221
-       ; 188; 199; 98 ]
-     |> Crypto.Secret.of_bytes in
-   let dev2_ephemeral_public =
-     int_list_to_bytes
-       [ 15; 210; 28; 84; 230; 108; 56; 68; 19; 52; 180; 101; 114; 37; 13; 99
-       ; 224; 79; 227; 122; 85; 100; 224; 195; 22; 64; 247; 160; 65; 149; 57
-       ; 49 ]
-     |> Crypto.Public.of_bytes in
-   (* timestamp *)
-   let timestamp =
-     int_list_to_bytes [64; 0; 0; 0; 93; 102; 199; 171; 9; 0; 0; 0]
-     |> Tai64n.of_bytes in
-   let static_keypair1 =
-     {secret= dev1_static_private; public= dev1_static_public} in
-   let static_keypair2 =
-     {secret= dev2_static_private; public= dev2_static_public} in
-   let ephemeral_keypair1 =
-     {secret= dev1_ephemeral_private; public= dev1_ephemeral_public} in
-   let ephemeral_keypair2 =
-     {secret= dev2_ephemeral_private; public= dev2_ephemeral_public} in
-   let handshake1 : Handshake.t =
-     let precomputed_static_static =
-       Crypto.dh ~secret:static_keypair1.secret ~public:static_keypair2.public
-       |> Or_error.ok_exn in
-     { state= ref Handshake.Handshake_zeroed
-     ; sequencer= Async.Throttle.Sequencer.create ()
-     ; hash= Bytes.create 32
-     ; chain_key= Shared.create_uninit ()
-     ; preshared_key= Shared.create_uninit ()
-     ; local_ephemeral=
-         {secret= Secret.create_uninit (); public= Public.create_uninit ()}
-     ; local_index= ref Int32.zero
-     ; remote_index= ref Int32.zero
-     ; remote_static= static_keypair2.public
-     ; remote_ephemeral= Public.create_uninit ()
-     ; precomputed_static_static
-     ; last_timestamp= ref Tai64n.epoch
-     ; last_initiation_consumption= ref Tai64n.epoch
-     ; last_sent_handshake= ref Tai64n.epoch } in
-   let handshake2 : Handshake.t =
-     let precomputed_static_static =
-       Crypto.dh ~secret:static_keypair2.secret ~public:static_keypair1.public
-       |> Or_error.ok_exn in
-     { state= ref Handshake.Handshake_zeroed
-     ; sequencer= Async.Throttle.Sequencer.create ()
-     ; hash= Bytes.create 32
-     ; chain_key= Shared.create_uninit ()
-     ; preshared_key= Shared.create_uninit ()
-     ; local_ephemeral=
-         {secret= Secret.create_uninit (); public= Public.create_uninit ()}
-     ; local_index= ref Int32.zero
-     ; remote_index= ref Int32.zero
-     ; remote_static= static_keypair1.public
-     ; remote_ephemeral= Public.create_uninit ()
-     ; precomputed_static_static
-     ; last_timestamp= ref Tai64n.epoch
-     ; last_initiation_consumption= ref Tai64n.epoch
-     ; last_sent_handshake= ref Tai64n.epoch } in
-   let open Deferred.Or_error.Let_syntax in
-   let%bind handshake_initiation =
-     create_message_initiation ~local_ephemeral:ephemeral_keypair1 ~timestamp
-       ~local_static_public:static_keypair1.public handshake1 in
-   Messages.Handshake_initiation.hexdump_t_cstruct handshake_initiation ;
-   let%bind peer1 =
-     consume_message_initiation
-     (* for testing only! should not be passed in in prod. *)
-       ~peer:{handshake= handshake2; keypairs= ref (Keypair.create_empty_ts ())}
-       ~msg:handshake_initiation ~local_static:static_keypair2 in
-   let%bind handshake_response =
-     create_message_response ~local_ephemeral:ephemeral_keypair2 peer1 in
-   Messages.Handshake_response.hexdump_t_cstruct handshake_response ;
-   let%bind peer2 =
-     consume_message_response ~handshake:handshake1
-       ~local_static:static_keypair1 handshake_response in
-   print_string "chain_hash_1\n" ;
-   pretty_print_bytes handshake1.hash ;
-   print_string "chain_key_1\n" ;
-   pretty_print_bytes (Shared.to_bytes handshake1.chain_key) ;
-   print_string "chain_hash_2\n" ;
-   pretty_print_bytes handshake2.hash ;
-   print_string "chain_key_2\n" ;
-   pretty_print_bytes (Shared.to_bytes handshake2.chain_key) ;
-   let%bind () = begin_symmetric_session peer1 in
-   let%bind () = begin_symmetric_session peer2 in
-   Deferred.return (test_key_pairs peer1 peer2))
-  |> Deferred.Or_error.ok_exn ;
+  let open Deferred.Let_syntax in
+  let%bind () =
+    (let dev1_static_private =
+       int_list_to_bytes
+         [ 224; 114; 26; 212; 195; 244; 59; 190; 172; 168; 61; 43; 199; 150; 127
+         ; 38; 231; 253; 83; 239; 77; 53; 17; 129; 247; 46; 198; 121; 147; 242
+         ; 95; 99 ]
+       |> Crypto.Secret.of_bytes in
+     let dev1_static_public =
+       int_list_to_bytes
+         [ 164; 241; 106; 150; 20; 255; 195; 182; 223; 236; 37; 135; 126; 101
+         ; 187; 255; 211; 191; 16; 19; 15; 134; 234; 31; 252; 52; 138; 62; 88
+         ; 14; 120; 36 ]
+       |> Crypto.Public.of_bytes in
+     let dev2_static_private =
+       int_list_to_bytes
+         [ 56; 63; 223; 191; 65; 76; 161; 98; 187; 219; 126; 199; 86; 23; 147
+         ; 194; 204; 57; 156; 82; 225; 132; 10; 140; 254; 102; 97; 25; 91; 249
+         ; 140; 127 ]
+       |> Crypto.Secret.of_bytes in
+     let dev2_static_public =
+       int_list_to_bytes
+         [ 178; 147; 147; 105; 114; 57; 113; 157; 55; 78; 29; 91; 95; 80; 71; 23
+         ; 132; 248; 26; 37; 211; 31; 233; 77; 185; 132; 60; 141; 237; 179; 140
+         ; 53 ]
+       |> Crypto.Public.of_bytes in
+     (* local and remote ephemeral keys *)
+     let dev1_ephemeral_private =
+       int_list_to_bytes
+         [ 224; 128; 105; 132; 216; 1; 207; 234; 117; 21; 175; 45; 37; 11; 107
+         ; 251; 152; 90; 145; 131; 204; 95; 117; 155; 91; 5; 94; 149; 249; 4
+         ; 247; 70 ]
+       |> Crypto.Secret.of_bytes in
+     let dev1_ephemeral_public =
+       int_list_to_bytes
+         [ 85; 135; 231; 208; 15; 35; 21; 225; 55; 108; 126; 159; 20; 213; 11
+         ; 46; 95; 135; 236; 74; 31; 99; 68; 254; 82; 159; 148; 217; 233; 79
+         ; 83; 118 ]
+       |> Crypto.Public.of_bytes in
+     let dev2_ephemeral_private =
+       int_list_to_bytes
+         [ 80; 9; 108; 30; 226; 174; 138; 236; 151; 228; 202; 108; 93; 98; 246
+         ; 194; 113; 195; 125; 36; 126; 70; 193; 172; 144; 191; 209; 249; 221
+         ; 188; 199; 98 ]
+       |> Crypto.Secret.of_bytes in
+     let dev2_ephemeral_public =
+       int_list_to_bytes
+         [ 15; 210; 28; 84; 230; 108; 56; 68; 19; 52; 180; 101; 114; 37; 13; 99
+         ; 224; 79; 227; 122; 85; 100; 224; 195; 22; 64; 247; 160; 65; 149; 57
+         ; 49 ]
+       |> Crypto.Public.of_bytes in
+     (* timestamp *)
+     let timestamp =
+       int_list_to_bytes [64; 0; 0; 0; 93; 102; 199; 171; 9; 0; 0; 0]
+       |> Tai64n.of_bytes in
+     let static_keypair1 =
+       {secret= dev1_static_private; public= dev1_static_public} in
+     let static_keypair2 =
+       {secret= dev2_static_private; public= dev2_static_public} in
+     let ephemeral_keypair1 =
+       {secret= dev1_ephemeral_private; public= dev1_ephemeral_public} in
+     let ephemeral_keypair2 =
+       {secret= dev2_ephemeral_private; public= dev2_ephemeral_public} in
+     let handshake1 : Handshake.t =
+       let precomputed_static_static =
+         Crypto.dh ~secret:static_keypair1.secret
+           ~public:static_keypair2.public
+         |> Or_error.ok_exn in
+       { state= ref Handshake.Handshake_zeroed
+       ; sequencer= Async.Throttle.Sequencer.create ()
+       ; hash= Bytes.create 32
+       ; chain_key= Shared.create_uninit ()
+       ; preshared_key= Shared.of_bytes (Bytes.make 32 '\x00')
+       ; local_ephemeral=
+           {secret= Secret.create_uninit (); public= Public.create_uninit ()}
+       ; local_index= ref Int32.zero
+       ; remote_index= ref Int32.zero
+       ; remote_static= static_keypair2.public
+       ; remote_ephemeral= Public.create_uninit ()
+       ; precomputed_static_static
+       ; last_timestamp= ref Tai64n.epoch
+       ; last_initiation_consumption= ref Tai64n.epoch
+       ; last_sent_handshake= ref Tai64n.epoch } in
+     let handshake2 : Handshake.t =
+       let precomputed_static_static =
+         Crypto.dh ~secret:static_keypair2.secret
+           ~public:static_keypair1.public
+         |> Or_error.ok_exn in
+       { state= ref Handshake.Handshake_zeroed
+       ; sequencer= Async.Throttle.Sequencer.create ()
+       ; hash= Bytes.create 32
+       ; chain_key= Shared.create_uninit ()
+       ; preshared_key= Shared.of_bytes (Bytes.make 32 '\x00')
+       ; local_ephemeral=
+           {secret= Secret.create_uninit (); public= Public.create_uninit ()}
+       ; local_index= ref Int32.zero
+       ; remote_index= ref Int32.zero
+       ; remote_static= static_keypair1.public
+       ; remote_ephemeral= Public.create_uninit ()
+       ; precomputed_static_static
+       ; last_timestamp= ref Tai64n.epoch
+       ; last_initiation_consumption= ref Tai64n.epoch
+       ; last_sent_handshake= ref Tai64n.epoch } in
+     let open Deferred.Or_error.Let_syntax in
+     let%bind handshake_initiation =
+       create_message_initiation ~local_ephemeral:ephemeral_keypair1 ~timestamp
+         ~local_static_public:static_keypair1.public handshake1 in
+     Messages.Handshake_initiation.hexdump_t_cstruct handshake_initiation ;
+     let%bind peer1 =
+       consume_message_initiation
+       (* for testing only! should not be passed in in prod. *)
+         ~peer:
+           {handshake= handshake2; keypairs= ref (Keypair.create_empty_ts ())}
+         ~msg:handshake_initiation ~local_static:static_keypair2 in
+     let%bind handshake_response =
+       create_message_response ~local_ephemeral:ephemeral_keypair2 peer1 in
+     Messages.Handshake_response.hexdump_t_cstruct handshake_response ;
+     let%bind peer2 =
+       consume_message_response ~handshake:handshake1
+         ~local_static:static_keypair1 handshake_response in
+     print_string "chain_hash_1\n" ;
+     pretty_print_bytes handshake1.hash ;
+     print_string "chain_key_1\n" ;
+     pretty_print_bytes (Shared.to_bytes handshake1.chain_key) ;
+     print_string "chain_hash_2\n" ;
+     pretty_print_bytes handshake2.hash ;
+     print_string "chain_key_2\n" ;
+     pretty_print_bytes (Shared.to_bytes handshake2.chain_key) ;
+     let%bind () = begin_symmetric_session peer1 in
+     let%bind () = begin_symmetric_session peer2 in
+     Deferred.return (test_key_pairs peer1 peer2))
+    |> Deferred.Or_error.ok_exn in
   [%expect
     {|
   t = {
@@ -574,68 +579,69 @@ let%expect_test "test_handshake_against_go_constants" =
 
 let%expect_test "test_handshake" =
   Crypto.init () |> Or_error.ok_exn ;
+  let open Deferred.Let_syntax in
   (* local and remote static keys *)
-  let static_keypair1 = Crypto.generate () |> Or_error.ok_exn in
-  let static_keypair2 = Crypto.generate () |> Or_error.ok_exn in
-  let handshake1 : Handshake.t =
-    let precomputed_static_static =
-      Crypto.dh ~secret:static_keypair1.secret ~public:static_keypair2.public
-      |> Or_error.ok_exn in
-    { state= ref Handshake.Handshake_zeroed
-    ; sequencer= Async.Throttle.Sequencer.create ()
-    ; hash= Bytes.create 32
-    ; chain_key= Shared.create_uninit ()
-    ; preshared_key= Shared.create_uninit ()
-    ; local_ephemeral=
-        {secret= Secret.create_uninit (); public= Public.create_uninit ()}
-    ; local_index= ref Int32.zero
-    ; remote_index= ref Int32.zero
-    ; remote_static= static_keypair2.public
-    ; remote_ephemeral= Public.create_uninit ()
-    ; precomputed_static_static
-    ; last_timestamp= ref Tai64n.epoch
-    ; last_initiation_consumption= ref Tai64n.epoch
-    ; last_sent_handshake= ref Tai64n.epoch } in
-  let handshake2 : Handshake.t =
-    let precomputed_static_static =
-      Crypto.dh ~secret:static_keypair2.secret ~public:static_keypair1.public
-      |> Or_error.ok_exn in
-    { state= ref Handshake.Handshake_zeroed
-    ; sequencer= Async.Throttle.Sequencer.create ()
-    ; hash= Bytes.create 32
-    ; chain_key= Shared.create_uninit ()
-    ; preshared_key= Shared.create_uninit ()
-    ; local_ephemeral=
-        {secret= Secret.create_uninit (); public= Public.create_uninit ()}
-    ; local_index= ref Int32.zero
-    ; remote_index= ref Int32.zero
-    ; remote_static= static_keypair1.public
-    ; remote_ephemeral= Public.create_uninit ()
-    ; precomputed_static_static
-    ; last_timestamp= ref Tai64n.epoch
-    ; last_initiation_consumption= ref Tai64n.epoch
-    ; last_sent_handshake= ref Tai64n.epoch } in
-  let handshake_initiation : Messages.Handshake_initiation.t_cstruct =
-    create_message_initiation ~local_static_public:static_keypair1.public
-      handshake1
-    |> Or_error.ok_exn in
-  let peer1 : peer =
-    consume_message_initiation
-    (* for testing only! should not be passed in in prod. *)
-      ~peer:{handshake= handshake2; keypairs= ref (Keypair.create_empty_ts ())}
-      ~msg:handshake_initiation ~local_static:static_keypair2
-    |> Or_error.ok_exn in
-  let handshake_response : Messages.Handshake_response.t_cstruct =
-    create_message_response peer1 |> Or_error.ok_exn in
-  let peer2 : peer =
-    consume_message_response ~local_static:static_keypair1
-      ~handshake:handshake1 handshake_response
-    |> Or_error.ok_exn in
-  if not (Bytes.equal handshake1.hash handshake2.hash) then
-    failwith "chain hashes don't match" ;
-  if not (Crypto.Shared.equals handshake1.chain_key handshake2.chain_key) then
-    failwith "chain keys don't match" ;
-  let () = begin_symmetric_session peer1 |> Or_error.ok_exn in
-  let () = begin_symmetric_session peer2 |> Or_error.ok_exn in
-  test_key_pairs peer1 peer2 |> Or_error.ok_exn ;
+  let%bind () =
+    (let open Deferred.Or_error.Let_syntax in
+    let static_keypair1 = Crypto.generate () |> Or_error.ok_exn in
+    let static_keypair2 = Crypto.generate () |> Or_error.ok_exn in
+    let handshake1 : Handshake.t =
+      let precomputed_static_static =
+        Crypto.dh ~secret:static_keypair1.secret ~public:static_keypair2.public
+        |> Or_error.ok_exn in
+      { state= ref Handshake.Handshake_zeroed
+      ; sequencer= Async.Throttle.Sequencer.create ()
+      ; hash= Bytes.create 32
+      ; chain_key= Shared.create_uninit ()
+      ; preshared_key= Shared.of_bytes (Bytes.make 32 '\x00')
+      ; local_ephemeral=
+          {secret= Secret.create_uninit (); public= Public.create_uninit ()}
+      ; local_index= ref Int32.zero
+      ; remote_index= ref Int32.zero
+      ; remote_static= static_keypair2.public
+      ; remote_ephemeral= Public.create_uninit ()
+      ; precomputed_static_static
+      ; last_timestamp= ref Tai64n.epoch
+      ; last_initiation_consumption= ref Tai64n.epoch
+      ; last_sent_handshake= ref Tai64n.epoch } in
+    let handshake2 : Handshake.t =
+      let precomputed_static_static =
+        Crypto.dh ~secret:static_keypair2.secret ~public:static_keypair1.public
+        |> Or_error.ok_exn in
+      { state= ref Handshake.Handshake_zeroed
+      ; sequencer= Async.Throttle.Sequencer.create ()
+      ; hash= Bytes.create 32
+      ; chain_key= Shared.create_uninit ()
+      ; preshared_key= Shared.of_bytes (Bytes.make 32 '\x00')
+      ; local_ephemeral=
+          {secret= Secret.create_uninit (); public= Public.create_uninit ()}
+      ; local_index= ref Int32.zero
+      ; remote_index= ref Int32.zero
+      ; remote_static= static_keypair1.public
+      ; remote_ephemeral= Public.create_uninit ()
+      ; precomputed_static_static
+      ; last_timestamp= ref Tai64n.epoch
+      ; last_initiation_consumption= ref Tai64n.epoch
+      ; last_sent_handshake= ref Tai64n.epoch } in
+    let%bind handshake_initiation =
+      create_message_initiation ~local_static_public:static_keypair1.public
+        handshake1 in
+    let%bind peer1 =
+      consume_message_initiation
+      (* for testing only! should not be passed in in prod. *)
+        ~peer:
+          {handshake= handshake2; keypairs= ref (Keypair.create_empty_ts ())}
+        ~msg:handshake_initiation ~local_static:static_keypair2 in
+    let%bind handshake_response = create_message_response peer1 in
+    let%bind peer2 =
+      consume_message_response ~local_static:static_keypair1
+        ~handshake:handshake1 handshake_response in
+    if not (Bytes.equal handshake1.hash handshake2.hash) then
+      failwith "chain hashes don't match" ;
+    if not (Crypto.Shared.equals handshake1.chain_key handshake2.chain_key)
+    then failwith "chain keys don't match" ;
+    let%bind () = begin_symmetric_session peer1 in
+    let%bind () = begin_symmetric_session peer2 in
+    Deferred.return (test_key_pairs peer1 peer2))
+    |> Deferred.Or_error.ok_exn in
   [%expect {|  |}]

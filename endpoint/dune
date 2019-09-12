@@ -1,0 +1,5 @@
+(library
+ (name endpoint)
+ (libraries core)
+ (preprocess
+  (pps ppx_cstruct ppx_deriving ppx_jane)))

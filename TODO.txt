@@ -1,14 +1,12 @@
-wireguard-go/device/allowedips_rand_test.go
-wireguard-go/device/allowedips_test.go
-wireguard-go/device/allowedips.go
+device/allowedips_rand_test.go
+device/allowedips_test.go
+device/allowedips.go
 device/bind_test.go
 device/conn_default.go
 device/conn.go
 device/cookie_test.go
 device/device{,test}.go
-device/endpoint_test.go
 device/indextable.go
-device/ip.go
 device/logger.go
 device/mark_unix.go
 device/peer.go
