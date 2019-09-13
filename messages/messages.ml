@@ -52,10 +52,12 @@ let create_dummy bytes =
   Dummy_for_cookie_tests
     (Cstruct.of_bytes bytes, Bytes.create 16, Bytes.create 16)
 
-let xor_dummy byte = function
+let xor_dummy byte =
+  let byte_int = int_of_char byte in
+  function
   | Dummy_for_cookie_tests (cstruct, _, _) ->
       for i = 0 to Cstruct.len cstruct - 1 do
-        Cstruct.set_uint8 cstruct i (Cstruct.get_uint8 cstruct i lxor byte)
+        Cstruct.set_uint8 cstruct i (Cstruct.get_uint8 cstruct i lxor byte_int)
       done
   | _ -> ()
 

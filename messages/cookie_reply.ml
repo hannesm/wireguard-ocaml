@@ -2,7 +2,7 @@ type%cstruct t =
   { msg_type: uint32_t
   ; receiver: uint32_t
   ; nonce: uint8_t [@len 24]
-  ; cookie: uint8_t [@len 48] }
+  ; cookie: uint8_t [@len 32] }
 [@@little_endian]
 
 type t_cstruct = Cstruct.t

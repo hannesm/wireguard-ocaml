@@ -7,7 +7,7 @@ type%cstruct t =
   ; mac2_cookie: uint8_t [@len 32]
   ; mac2_cookie_set: uint8_t [@len 12]
   ; mac2_has_last_mac1: uint8_t
-  ; mac2_last_mac1: uint8_t [@len 32]
+  ; mac2_last_mac1: uint8_t [@len 16]
   ; encryption_key: uint8_t [@len 32] }
 [@@little_endian]
 
@@ -47,7 +47,9 @@ let init pk : t Or_error.t =
   ckr
 
 (* CR crichoux: write tESTS *)
-let consume_reply ~t ~(msg : Messages.Cookie_reply.t) : unit Or_error.t =
+let consume_reply ~t ~(msg : Messages.Cookie_reply.t_cstruct) : unit Or_error.t
+    =
+  let msg = Messages.Cookie_reply.cstruct_to_t msg in
   if not (get_t_mac2_has_last_mac1 t) then
     Or_error.error_string "no last mac1 for cookie reply"
   else
