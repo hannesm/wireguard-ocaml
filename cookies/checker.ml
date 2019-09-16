@@ -63,17 +63,19 @@ let check_mac2 ~t ~(msg_beta : Cstruct.t) ~(mac2_r : bytes) ~(src : bytes) :
     ~error:(Error.of_string "mac2 check failed!")
     (Bytes.equal mac2 mac2_r)
 
-let check_macs ~t ~msg ~src : unit Or_error.t =
+let check_macs ?(should_check_mac2 = true) ~t ~msg ~src : unit Or_error.t =
   let msg_alpha, mac1_r, msg_beta, mac2_r = Messages.get_macs msg in
   let%bind () = check_mac1 ~t ~msg_alpha ~mac1_r in
-  check_mac2 ~t ~msg_beta ~mac2_r ~src
+  if should_check_mac2 then check_mac2 ~t ~msg_beta ~mac2_r ~src
+  else Or_error.return ()
 
 (* msg is incoming message prompting cookie reply msg *)
 (* recv is receiver id from msg.sender of message *)
 (* src is concatenation of external IP src address and UDP port *)
 (* CR crichoux: write expect tests for this! *)
-let create_reply ~t ~msg ~receiver ~src :
+let create_reply ?nonce ~t ~msg ~receiver ~src :
     Messages.Cookie_reply.t_cstruct Or_error.t =
+  Cstruct.hexdump t ;
   let mac2_secret_set = get_t_mac2_secret_set t in
   if
     Time_ns.Span.(
@@ -83,8 +85,12 @@ let create_reply ~t ~msg ~receiver ~src :
     blit_t_mac2_secret t (Crypto.random_buffer 32) ;
     blit_t_mac2_secret_set t (Tai64n.now () |> Tai64n.to_bytes) ) ;
   let%bind tau = Crypto.mac ~key:(get_t_mac2_secret t) ~input:src in
+  print_string "tau" ;
+  Cstruct.of_bytes tau |> Cstruct.hexdump ;
   let _, mac1_r, _, _ = Messages.get_macs msg in
-  let nonce = Crypto.random_buffer 24 in
+  let nonce =
+    match nonce with None -> Crypto.random_buffer 24 | Some nonce -> nonce
+  in
   let%map cookie =
     Crypto.xaead_encrypt
       ~key:(get_t_mac2_encryption_key t)

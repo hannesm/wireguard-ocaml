@@ -61,6 +61,25 @@ let xor_dummy byte =
       done
   | _ -> ()
 
+let pretty_print_bytes bytes = bytes |> Cstruct.of_bytes |> Cstruct.hexdump
+
+let hexdump_mac_message = function
+  | Handshake_initiation m ->
+      Handshake_initiation.t_to_cstruct m
+      |> Handshake_initiation.hexdump_t_cstruct
+  | Handshake_response m ->
+      Handshake_response.t_to_cstruct m |> Handshake_response.hexdump_t_cstruct
+  | Handshake_initiation_cstruct m_cstruct ->
+      Handshake_initiation.hexdump_t_cstruct m_cstruct
+  | Handshake_response_cstruct m_cstruct ->
+      Handshake_response.hexdump_t_cstruct m_cstruct
+  | Dummy_for_cookie_tests (msg, old_mac1, old_mac2) ->
+      Cstruct.hexdump msg ;
+      print_string "mac1:" ;
+      pretty_print_bytes old_mac1 ;
+      print_string "mac2:" ;
+      pretty_print_bytes old_mac2
+
 type t =
   | Handshake_initiation of Handshake_initiation.t
   | Handshake_response of Handshake_response.t

@@ -7,10 +7,20 @@ let int_list_to_bytes (int_list : int list) : bytes =
 
 let src = int_list_to_bytes [192; 168; 13; 37; 10; 10; 10]
 
+let key =
+  let secret =
+    "\x30\xa8\xdb\xa2\x20\xcd\xd1\x3b\x4a\x5b\x6f\x5b\xca\xcc\xdb\xea\x19\x1a\x17\x08\x91\x84\x8a\x8b\xe3\x74\xcf\x7f\x04\xec\xe1\x53"
+    |> Bytes.of_string |> Crypto.Secret.of_bytes in
+  let public =
+    "\xf9\xcd\xf3\x94\xe8\x92\xd5\x55\x2b\x6a\xaa\xbe\x1f\x27\xba\x56\x3b\x30\xe4\x80\xb3\x2e\x27\x1e\xed\x57\x18\x02\x3a\xef\xb1\x48"
+    |> Bytes.of_string |> Crypto.Public.of_bytes in
+  Crypto.{secret; public}
+
 let%expect_test "test_cookie_mac1_check_from_go" =
   Or_error.ok_exn
-    (let%bind key = Crypto.generate () in
-     let%bind check = Checker.init key.public in
+    (* let%bind key = Crypto.generate () in*)
+    (let%bind check = Checker.init key.public in
+     let%bind gen = Generator.init key.public in
      let%bind () =
        let msg =
          [ '\x99'; '\xbb'; '\xa5'; '\xfc'; '\x99'; '\xaa'; '\x83'; '\xbd'
@@ -24,13 +34,10 @@ let%expect_test "test_cookie_mac1_check_from_go" =
          ; '\xc8'; '\x7d'; '\xb7'; '\x8e'; '\xff'; '\x49'; '\xc4'; '\xe8'
          ; '\x39'; '\x7c'; '\x19'; '\xe0'; '\x60'; '\x19'; '\x51'; '\xf8'
          ; '\xe4'; '\x8e'; '\x02'; '\xf1'; '\x7f'; '\x1d'; '\xcc'; '\x8e'
-         ; '\xb0'; '\x07'; '\xff'; '\xf8'; '\xaf'; '\x7f'; '\x66'; '\x82'
-         ; '\x83'; '\xcc'; '\x7c'; '\xfa'; '\x80'; '\xdb'; '\x81'; '\x53'
-         ; '\xad'; '\xf7'; '\xd8'; '\x0c'; '\x10'; '\xe0'; '\x20'; '\xfd'
-         ; '\xe8'; '\x0b'; '\x3f'; '\x90'; '\x15'; '\xcd'; '\x93'; '\xad'
-         ; '\x0b'; '\xd5'; '\x0c'; '\xcc'; '\x88'; '\x56'; '\xe4'; '\x3f' ]
+         ; '\xb0'; '\x07'; '\xff'; '\xf8'; '\xaf'; '\x7f'; '\x66'; '\x82' ]
          |> Bytes.of_char_list |> Messages.create_dummy in
-       Checker.check_macs ~t:check ~msg ~src in
+       let%bind () = Generator.add_macs ~t:gen ~msg in
+       Checker.check_macs ~should_check_mac2:false ~t:check ~msg ~src in
      let%bind () =
        let msg =
          [ '\x33'; '\xe7'; '\x2a'; '\x84'; '\x9f'; '\xff'; '\x57'; '\x6c'
@@ -42,14 +49,16 @@ let%expect_test "test_cookie_mac1_check_from_go" =
          ; '\xb8'; '\x57'; '\x33'; '\x45'; '\x6e'; '\x8b'; '\x09'; '\x2b'
          ; '\x81'; '\x2e'; '\xd2'; '\xb9'; '\x66'; '\x0b'; '\x93'; '\x05' ]
          |> Bytes.of_char_list |> Messages.create_dummy in
-       Checker.check_macs ~t:check ~msg ~src in
+       let%bind () = Generator.add_macs ~t:gen ~msg in
+       Checker.check_macs ~should_check_mac2:false ~t:check ~msg ~src in
      let msg =
        [ '\x9b'; '\x96'; '\xaf'; '\x55'; '\x3c'; '\xeb'; '\x6d'; '\x0b'; '\x13'
        ; '\x0b'; '\x97'; '\x98'; '\xb3'; '\x40'; '\xc3'; '\xcc'; '\xb8'; '\x57'
        ; '\x33'; '\x45'; '\x6e'; '\x8b'; '\x09'; '\x2b'; '\x81'; '\x2e'; '\xd2'
        ; '\xb9'; '\x66'; '\x0b'; '\x93'; '\x05' ]
        |> Bytes.of_char_list |> Messages.create_dummy in
-     Checker.check_macs ~t:check ~msg ~src) ;
+     let%bind () = Generator.add_macs ~t:gen ~msg in
+     Checker.check_macs ~should_check_mac2:false ~t:check ~msg ~src) ;
   [%expect {| |}]
 
 let%expect_test "test_cookie_reply_from_go" =
@@ -64,19 +73,20 @@ let%expect_test "test_cookie_reply_from_go" =
     ; '\xe9'; '\x77'; '\x0b'; '\xc2'; '\xb4'; '\xed'; '\xba'; '\xf9'; '\x22'
     ; '\xc3'; '\x03'; '\x97'; '\x42'; '\x9f'; '\x79'; '\x74'; '\x27'; '\xfe'
     ; '\xf9'; '\x06'; '\x6e'; '\x97'; '\x3a'; '\xa6'; '\x8f'; '\xc9'; '\x57'
-    ; '\x0a'; '\x54'; '\x4c'; '\x64'; '\x4a'; '\xe2'; '\x4f'; '\xa1'; '\xce'
-    ; '\x95'; '\x9b'; '\x23'; '\xa9'; '\x2b'; '\x85'; '\x93'; '\x42'; '\xb0'
-    ; '\xa5'; '\x53'; '\xed'; '\xeb'; '\x63'; '\x2a'; '\xf1'; '\x6d'; '\x46'
-    ; '\xcb'; '\x2f'; '\x61'; '\x8c'; '\xe1'; '\xe8'; '\xfa'; '\x67'; '\x20'
-    ; '\x80'; '\x6d' ]
+    ; '\x0a'; '\x54'; '\x4c'; '\x64'; '\x4a'; '\xe2' ]
     |> Bytes.of_char_list |> Messages.create_dummy in
-  (let%bind key = Crypto.generate () in
-   let%bind check = Checker.init key.public in
+  (let%bind check = Checker.init key.public in
    let%bind gen = Generator.init key.public in
    let%bind () = Generator.add_macs ~t:gen ~msg in
-   let%bind cookie_reply =
-     Checker.create_reply ~t:check ~msg ~receiver:(Int32.of_int_exn 1377) ~src
+   Messages.hexdump_mac_message msg ;
+   let nonce =
+     Bytes.of_string
+       "\xe8\x49\xa5\x6d\x1a\xda\xb6\x7e\x28\x03\x8e\x73\xe9\xc3\xf6\xc8\x05\x83\x32\x85\x0e\x79\x34\x82"
    in
+   let%bind cookie_reply =
+     Checker.create_reply ~nonce ~t:check ~msg
+       ~receiver:(Int32.of_int_exn 1377) ~src in
+   Messages.Cookie_reply.hexdump_t_cstruct cookie_reply ;
    Generator.consume_reply ~t:gen ~msg:cookie_reply)
   |> Or_error.ok_exn ;
   [%expect {| |}]
@@ -87,18 +97,23 @@ let is_error = function
 
 let check_mac2 ~gen ~check ~msg =
   let%bind () = Generator.add_macs ~t:gen ~msg in
-  let%bind () = Checker.check_macs ~t:check ~msg ~src in
+  Messages.hexdump_mac_message msg ;
+  let%bind () = Checker.check_macs ~should_check_mac2:true ~t:check ~msg ~src in
   Messages.xor_dummy '\x20' msg ;
-  let%bind () = Checker.check_macs ~t:check ~msg ~src |> is_error in
+  let%bind () =
+    Checker.check_macs ~should_check_mac2:true ~t:check ~msg ~src |> is_error
+  in
   Messages.xor_dummy '\x20' msg ;
   let src_bad1 = int_list_to_bytes [192; 168; 13; 37; 40; 01] in
-  let%bind () = Checker.check_macs ~t:check ~msg ~src:src_bad1 |> is_error in
+  let%bind () =
+    Checker.check_macs ~should_check_mac2:true ~t:check ~msg ~src:src_bad1
+    |> is_error in
   let src_bad2 = int_list_to_bytes [192; 168; 13; 38; 40; 01] in
-  Checker.check_macs ~t:check ~msg ~src:src_bad2 |> is_error
+  Checker.check_macs ~should_check_mac2:true ~t:check ~msg ~src:src_bad2
+  |> is_error
 
 let%expect_test "test_cookie_mac2_check_from_go" =
-  (let%bind key = Crypto.generate () in
-   let%bind check = Checker.init key.public in
+  (let%bind check = Checker.init key.public in
    let%bind gen = Generator.init key.public in
    let%bind () =
      let msg =

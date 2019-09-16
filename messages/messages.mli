@@ -25,6 +25,7 @@ val get_macs : mac_message -> Cstruct.t * bytes * Cstruct.t * bytes
 val set_macs : msg:mac_message -> mac1:bytes -> mac2:bytes -> unit
 val create_dummy : bytes -> mac_message
 val xor_dummy : char -> mac_message -> unit
+val hexdump_mac_message : mac_message -> unit
 
 type t =
   | Handshake_initiation of Handshake_initiation.t

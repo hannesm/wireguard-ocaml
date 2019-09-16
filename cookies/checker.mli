@@ -3,10 +3,15 @@ type t
 val init : Crypto.Public.key -> t Core.Or_error.t
 
 val check_macs :
-  t:t -> msg:Messages.mac_message -> src:bytes -> unit Core.Or_error.t
+     ?should_check_mac2:bool
+  -> t:t
+  -> msg:Messages.mac_message
+  -> src:bytes
+  -> unit Core.Or_error.t
 
 val create_reply :
-     t:t
+     ?nonce:bytes
+  -> t:t
   -> msg:Messages.mac_message
   -> receiver:int32
   -> src:bytes
