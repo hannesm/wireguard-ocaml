@@ -5,9 +5,9 @@ let poly1305_tag_size = 16
 
 (* CR crichoux: get some poly1305 utils in here *)
 
-type data_with_len = Bytes.t * int64
+type data_with_len = {bytes: bytes; mutable len: int64}
 
-let add_len bytes = (bytes, Bytes.length bytes |> Int.to_int64)
+let add_len bytes = {bytes; len= Bytes.length bytes |> Int.to_int64}
 let aead_nonce_length = 12 (* bytes *)
 
 let xaead_nonce_length = 24 (* bytes *)
@@ -58,14 +58,14 @@ let aead_encrypt ~key ~counter ~message ~auth_text =
   let c_with_len =
     let c_buf =
       Bytes.create
-        ( (snd m_with_len |> Int.of_int64_exn)
+        ( (m_with_len.len |> Int.of_int64_exn)
         + crypto_aead_chacha20poly1305_ABYTES ) in
     add_len c_buf in
   let auth_with_len = add_len auth_text in
   let status = aead_encrypt_ c_with_len m_with_len auth_with_len nonce key in
   if status < 0 then
     Or_error.error_s [%message "failed to encrypt w/ aead" (status : int)]
-  else Or_error.return (fst c_with_len)
+  else Or_error.return c_with_len.bytes
 
 let aead_decrypt ~key ~counter ~ciphertext ~auth_text =
   let key = Key.Shared.to_bytes key in
@@ -74,14 +74,14 @@ let aead_decrypt ~key ~counter ~ciphertext ~auth_text =
   let m_with_len =
     let m_buf =
       Bytes.create
-        ( (snd c_with_len |> Int.of_int64_exn)
+        ( (c_with_len.len |> Int.of_int64_exn)
         - crypto_aead_chacha20poly1305_ABYTES ) in
     add_len m_buf in
   let auth_with_len = add_len auth_text in
   let status = aead_decrypt_ m_with_len c_with_len auth_with_len nonce key in
   if status < 0 then
     Or_error.error_s [%message "failed to decrypt w/ aead" (status : int)]
-  else Or_error.return (fst m_with_len)
+  else Or_error.return m_with_len.bytes
 
 let xaead_encrypt ~key ~nonce ~message ~auth_text =
   let key = Key.Shared.to_bytes key in
@@ -89,14 +89,14 @@ let xaead_encrypt ~key ~nonce ~message ~auth_text =
   let c_with_len =
     let c_buf =
       Bytes.create
-        ( (snd m_with_len |> Int.of_int64_exn)
+        ( (m_with_len.len |> Int.of_int64_exn)
         + crypto_aead_chacha20poly1305_ABYTES ) in
     add_len c_buf in
   let auth_with_len = add_len auth_text in
   let status = xaead_encrypt_ c_with_len m_with_len auth_with_len nonce key in
   if status < 0 then
     Or_error.error_s [%message "failed to encrypt w/ xaead" (status : int)]
-  else Or_error.return (fst c_with_len)
+  else Or_error.return c_with_len.bytes
 
 let xaead_decrypt ~key ~nonce ~ciphertext ~auth_text =
   let key = Key.Shared.to_bytes key in
@@ -104,14 +104,14 @@ let xaead_decrypt ~key ~nonce ~ciphertext ~auth_text =
   let m_with_len =
     let m_buf =
       Bytes.create
-        ( (snd c_with_len |> Int.of_int64_exn)
+        ( (c_with_len.len |> Int.of_int64_exn)
         - crypto_aead_chacha20poly1305_ABYTES ) in
     add_len m_buf in
   let auth_with_len = add_len auth_text in
   let status = xaead_decrypt_ m_with_len c_with_len auth_with_len nonce key in
   if status < 0 then
     Or_error.error_s [%message "failed to decrypt w/ xaead" (status : int)]
-  else Or_error.return (fst m_with_len)
+  else Or_error.return m_with_len.bytes
 
 let%expect_test "test-aead-encrypt-decrypt" =
   Initialize.init () |> Or_error.ok_exn ;

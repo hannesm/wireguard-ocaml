@@ -42,11 +42,6 @@ CAMLprim value caml_crypto_gen_pubkey_from_ed25519_secret(value pk, value sk) {
   CAMLreturn(Val_int(crypto_scalarmult_ed25519_base(Bytes_val(pk), Bytes_val(sk))));
 }*/
 
-CAMLprim value caml_crypto_siphash(value out, value in, value in_len, value k) {
-  CAMLparam4 (out, in, in_len, k);
-  CAMLreturn(Val_int(crypto_shorthash(Bytes_val(out), Bytes_val(in), Int64_val(in_len), Bytes_val(k))));
-}
-
 CAMLprim value caml_crypto_dh(value shared_buf, value sk, value pk) {
   CAMLparam3 (pk, sk, shared_buf);
   CAMLreturn(
@@ -61,17 +56,21 @@ CAMLprim value caml_crypto_aead_chacha20poly1305_encrypt
    value nonce,
    value key) {
   CAMLparam5 (dst_ciphertext, src_message, src_auth_text, nonce, key);
-  CAMLreturn(Val_int(crypto_aead_chacha20poly1305_ietf_encrypt
+  CAMLlocal1(myclen_p);
+  unsigned long long clen_p;
+  int ret_val = crypto_aead_chacha20poly1305_ietf_encrypt
                      (Bytes_val(Field(dst_ciphertext, 0)),
-                      (unsigned long long *)Data_custom_val(Field(dst_ciphertext, 1)),
+                      &clen_p,
                       Bytes_val(Field(src_message, 0)),
                       Int64_val(Field(src_message, 1)),
                       Bytes_val(Field(src_auth_text, 0)),
                       Int64_val(Field(src_auth_text, 1)),
                       NULL,
                       Bytes_val(nonce),
-                      Bytes_val(key))));
-
+                      Bytes_val(key));
+  myclen_p = caml_copy_int64(clen_p);
+  Store_field(dst_ciphertext, 1, myclen_p);
+  CAMLreturn(Val_int(ret_val));
 }
 CAMLprim value caml_crypto_aead_chacha20poly1305_decrypt
   (value dst_message,
@@ -81,17 +80,21 @@ CAMLprim value caml_crypto_aead_chacha20poly1305_decrypt
    value key) {
 
   CAMLparam5 (dst_message, src_ciphertext, src_auth_text, nonce, key);
-
-  CAMLreturn(Val_int(crypto_aead_chacha20poly1305_ietf_decrypt
+  CAMLlocal1(myclen_p);
+  unsigned long long clen_p;
+  int ret_val = crypto_aead_chacha20poly1305_ietf_decrypt
                      (Bytes_val(Field(dst_message, 0)),
-                      (unsigned long long *)Data_custom_val(Field(dst_message, 1)),
+                      &clen_p,
                       NULL,
                       Bytes_val(Field(src_ciphertext, 0)),
                       Int64_val(Field(src_ciphertext, 1)),
                       Bytes_val(Field(src_auth_text, 0)),
                       Int64_val(Field(src_auth_text, 1)),
                       Bytes_val(nonce),
-                      Bytes_val(key))));
+                      Bytes_val(key));
+  myclen_p = caml_copy_int64(clen_p);
+  Store_field(dst_message, 1, myclen_p);
+  CAMLreturn(Val_int(ret_val));
 }
 CAMLprim value caml_crypto_xaead_xchacha20poly1305_encrypt
   (value dst_ciphertext,
@@ -99,17 +102,22 @@ CAMLprim value caml_crypto_xaead_xchacha20poly1305_encrypt
    value src_auth_text,
    value nonce,
    value key) {
-  CAMLparam5 (dst_ciphertext, src_message, src_auth_text, nonce, key);
-  CAMLreturn(Val_int(crypto_aead_xchacha20poly1305_ietf_encrypt
-                     (Bytes_val(Field(dst_ciphertext, 0)),
-                      (unsigned long long *)Data_custom_val(Field(dst_ciphertext, 1)),
-                      Bytes_val(Field(src_message, 0)),
-                      Int64_val(Field(src_message, 1)),
-                      Bytes_val(Field(src_auth_text, 0)),
-                      Int64_val(Field(src_auth_text, 1)),
-                      NULL,
-                      Bytes_val(nonce),
-                      Bytes_val(key))));
+     CAMLparam5 (dst_ciphertext, src_message, src_auth_text, nonce, key);
+     CAMLlocal1(myclen_p);
+     unsigned long long clen_p;
+     int ret_val = crypto_aead_xchacha20poly1305_ietf_encrypt
+                        (Bytes_val(Field(dst_ciphertext, 0)),
+                         &clen_p,
+                         Bytes_val(Field(src_message, 0)),
+                         Int64_val(Field(src_message, 1)),
+                         Bytes_val(Field(src_auth_text, 0)),
+                         Int64_val(Field(src_auth_text, 1)),
+                         NULL,
+                         Bytes_val(nonce),
+                         Bytes_val(key));
+     myclen_p = caml_copy_int64(clen_p);
+     Store_field(dst_ciphertext, 1, myclen_p);
+     CAMLreturn(Val_int(ret_val));
 
 }
 CAMLprim value caml_crypto_xaead_xchacha20poly1305_decrypt
@@ -120,17 +128,21 @@ CAMLprim value caml_crypto_xaead_xchacha20poly1305_decrypt
    value key) {
 
   CAMLparam5 (dst_message, src_ciphertext, src_auth_text, nonce, key);
-
-  CAMLreturn(Val_int(crypto_aead_xchacha20poly1305_ietf_decrypt
+  CAMLlocal1(myclen_p);
+  unsigned long long clen_p;
+  int ret_val = crypto_aead_xchacha20poly1305_ietf_decrypt
                      (Bytes_val(Field(dst_message, 0)),
-                      (unsigned long long *)Data_custom_val(Field(dst_message, 1)),
+                      &clen_p,
                       NULL,
                       Bytes_val(Field(src_ciphertext, 0)),
                       Int64_val(Field(src_ciphertext, 1)),
                       Bytes_val(Field(src_auth_text, 0)),
                       Int64_val(Field(src_auth_text, 1)),
                       Bytes_val(nonce),
-                      Bytes_val(key))));
+                      Bytes_val(key));
+  myclen_p = caml_copy_int64(clen_p);
+  Store_field(dst_message, 1, myclen_p);
+  CAMLreturn(Val_int(ret_val));
 }
 
 CAMLprim value caml_crypto_hash_blake2s(value input, value input_len, value out_buf) {

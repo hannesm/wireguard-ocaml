@@ -66,8 +66,7 @@ let check_mac2 ~t ~(msg_beta : Cstruct.t) ~(mac2_r : bytes) ~(src : bytes) :
 let check_macs ?(should_check_mac2 = true) ~t ~msg ~src : unit Or_error.t =
   let msg_alpha, mac1_r, msg_beta, mac2_r = Messages.get_macs msg in
   let%bind () = check_mac1 ~t ~msg_alpha ~mac1_r in
-  if should_check_mac2 then check_mac2 ~t ~msg_beta ~mac2_r ~src
-  else Or_error.return ()
+  if should_check_mac2 then check_mac2 ~t ~msg_beta ~mac2_r ~src else Ok ()
 
 (* msg is incoming message prompting cookie reply msg *)
 (* recv is receiver id from msg.sender of message *)

@@ -80,4 +80,3 @@ val xaead_decrypt :
   -> bytes Or_error.t
 
 val poly1305_tag_size : int
-val siphash : key:bytes -> input:bytes -> bytes Or_error.t

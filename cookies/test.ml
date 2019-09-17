@@ -19,7 +19,8 @@ let key =
 let%expect_test "test_cookie_mac1_check_from_go" =
   Or_error.ok_exn
     (* let%bind key = Crypto.generate () in*)
-    (let%bind check = Checker.init key.public in
+    (let%bind () = Crypto.init () in
+     let%bind check = Checker.init key.public in
      let%bind gen = Generator.init key.public in
      let%bind () =
        let msg =
@@ -75,7 +76,8 @@ let%expect_test "test_cookie_reply_from_go" =
     ; '\xf9'; '\x06'; '\x6e'; '\x97'; '\x3a'; '\xa6'; '\x8f'; '\xc9'; '\x57'
     ; '\x0a'; '\x54'; '\x4c'; '\x64'; '\x4a'; '\xe2' ]
     |> Bytes.of_char_list |> Messages.create_dummy in
-  (let%bind check = Checker.init key.public in
+  (let%bind () = Crypto.init () in
+   let%bind check = Checker.init key.public in
    let%bind gen = Generator.init key.public in
    let%bind () = Generator.add_macs ~t:gen ~msg in
    Messages.hexdump_mac_message msg ;
@@ -113,7 +115,8 @@ let check_mac2 ~gen ~check ~msg =
   |> is_error
 
 let%expect_test "test_cookie_mac2_check_from_go" =
-  (let%bind check = Checker.init key.public in
+  (let%bind () = Crypto.init () in
+   let%bind check = Checker.init key.public in
    let%bind gen = Generator.init key.public in
    let%bind () =
      let msg =
